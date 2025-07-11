@@ -30,8 +30,8 @@ app = FastAPI(title=settings.PROJECT_NAME)
 # 개발: localhost 허용
 allowed_origins = [
     "http://localhost:3000",  # 로컬 개발
-    "https://pbn-mvp-frontend.vercel.app/",  # Vercel 배포된 프론트엔드
-    "https://*.vercel.app",  # 모든 Vercel 서브도메인
+    "https://pbn-mvp-frontend.vercel.app",  # Vercel 배포된 프론트엔드 (슬래시 제거)
+    "https://pbn-mvp-frontend-gogv.vercel.app",  # 기존 도메인
 ]
 
 # 추가 도메인이 있다면 환경변수로 추가 가능
