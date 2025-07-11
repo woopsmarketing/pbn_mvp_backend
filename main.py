@@ -25,25 +25,12 @@ sentry_sdk.init(
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
-# 환경에 따른 CORS 설정
-# 프로덕션: 실제 도메인만 허용
-# 개발: localhost 허용
-allowed_origins = [
-    "http://localhost:3000",  # 로컬 개발
-    "https://pbn-mvp-frontend.vercel.app",  # Vercel 배포된 프론트엔드 (슬래시 제거)
-    "https://pbn-mvp-frontend-gogv.vercel.app",  # 기존 도메인
-]
-
-# 추가 도메인이 있다면 환경변수로 추가 가능
-additional_origins = os.getenv("ADDITIONAL_CORS_ORIGINS", "").split(",")
-if additional_origins and additional_origins[0]:  # 빈 문자열 체크
-    allowed_origins.extend(additional_origins)
-
+# 임시 개발용 CORS 설정 - 모든 도메인 허용 (나중에 제한 필요)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=["*"],  # 임시로 모든 도메인 허용
+    allow_credentials=False,  # 모든 도메인 허용시 credentials는 False여야 함
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
