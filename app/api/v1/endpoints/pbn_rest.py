@@ -188,40 +188,61 @@ async def rest_test_request(request: PbnSampleRequest):
 
         logger.info(f"REST order created: {order['id']} for user {user['email']}")
 
-        # 4. 주문 확인 이메일 발송 (Redis 연결 안전 처리)
-        email_task_status = "disabled"  # 임시로 비활성화
-        pbn_task_status = "disabled"  # 임시로 비활성화
+        # 4. 주문 확인 이메일 발송 (Redis 연결 처리)
+        email_task_status = "scheduled"
+        pbn_task_status = "scheduled"
 
-        # Redis 연결 없이도 정상 작동하도록 임시 비활성화
-        logger.info("📧 이메일 및 PBN 태스크는 Redis 서비스 연결 후 활성화됩니다")
+        # 이메일 발송 태스크 등록
+        try:
+            from app.tasks.email_tasks import send_order_confirmation_email
 
-        # TODO: Redis 서비스 연결 후 아래 코드 활성화
-        # try:
-        #     from app.tasks.email_tasks import send_order_confirmation_email
-        #     send_order_confirmation_email.apply_async(
-        #         args=[user["email"], order["id"], {...}],
-        #         queue="default",
-        #     )
-        #     email_task_status = "scheduled"
-        # except Exception as e:
-        #     logger.warning(f"⚠️ 이메일 태스크 등록 실패: {str(e)}")
-        #     email_task_status = "failed_redis_connection"
+            send_order_confirmation_email.apply_async(
+                args=[
+                    user["email"],  # vnfm0580@gmail.com으로 발송
+                    order["id"],
+                    {
+                        "target_url": request.target_url,
+                        "keyword": request.keyword,
+                        "pbn_domain": selected_pbn["domain"],
+                    },
+                ],
+                queue="default",
+            )
+            logger.info("✅ 이메일 태스크가 Redis 큐에 등록되었습니다")
+        except Exception as e:
+            logger.warning(f"⚠️ 이메일 태스크 등록 실패 (Redis 연결 문제): {str(e)}")
+            email_task_status = "failed_redis_connection"
 
-        # try:
-        #     from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
-        #     create_pbn_backlink_rest.apply_async(
-        #         args=[order["id"], request.target_url, request.keyword, selected_pbn["domain"]],
-        #         queue="default",
-        #     )
-        #     pbn_task_status = "scheduled"
-        # except Exception as e:
-        #     logger.warning(f"⚠️ PBN 태스크 등록 실패: {str(e)}")
-        #     pbn_task_status = "failed_redis_connection"
+        # PBN 백링크 구축 태스크 등록
+        try:
+            from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
 
-        # 현재 상태에 맞는 메시지 설정
-        message = "PBN 백링크 구축 요청이 성공적으로 접수되었습니다"
-        note = "📝 주문이 생성되었습니다. Redis 서비스 연결 후 백그라운드 처리가 시작됩니다"
-        method = "supabase_rest_api_redis_disabled"
+            create_pbn_backlink_rest.apply_async(
+                args=[
+                    order["id"],
+                    request.target_url,
+                    request.keyword,
+                    selected_pbn["domain"],
+                ],
+                queue="default",
+            )
+            logger.info("✅ PBN 백링크 태스크가 Redis 큐에 등록되었습니다")
+        except Exception as e:
+            logger.warning(f"⚠️ PBN 태스크 등록 실패 (Redis 연결 문제): {str(e)}")
+            pbn_task_status = "failed_redis_connection"
+
+        # Redis 연결 상태에 따른 메시지 설정
+        if (
+            email_task_status == "failed_redis_connection"
+            or pbn_task_status == "failed_redis_connection"
+        ):
+            message = "PBN 백링크 구축 요청이 접수되었습니다 (Redis 서비스 연결 필요)"
+            note = "⚠️ Redis 서비스 연결 후 백그라운드 처리가 시작됩니다"
+            method = "supabase_rest_api_redis_pending"
+        else:
+            message = "PBN 백링크 구축이 시작되었습니다! 이메일을 확인해주세요"
+            note = "✅ Redis 서비스 연결 완료, 백그라운드 처리 중 (이메일 발송됨)"
+            method = "supabase_rest_api_with_redis"
 
         return {
             "success": True,
