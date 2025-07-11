@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Welcome to Netlify!</title>
+    <style>
+      /* 인라인 스타일 또는 <style> 태그로 CSS 추가 */
+      .button {
+        display: inline-block;
+        padding: 12px 24px;
+        background: #00ad9f;
+        color: #fff;
+        text-decoration: none;
+        border-radius: 6px;
+        font-weight: bold;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        font-family: Arial, sans-serif;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        padding: 32px;
+      }
+      .logo {
+        width: 120px;
+        margin-bottom: 24px;
+      }
+    </style>
+  </head>
+  <body style="background: #f6f8fa;">
+    <div class="container">
+      <img src="https://www.netlify.com/v3/img/components/logomark.png" alt="Netlify" class="logo" />
+      <h1>환영합니다, {{ name }}님!</h1>
+      <p>Netlify에 가입해주셔서 감사합니다.<br>
+      아래 버튼을 눌러 시작해보세요.</p>
+      <a href="{{ link }}" class="button">시작하기</a>
+      <p style="margin-top:32px; color:#888; font-size:14px;">
+        궁금한 점이 있으시면 언제든 문의해 주세요.<br>
+        Followsales 팀 드림
+      </p>
+    </div>
+  </body>
+</html>

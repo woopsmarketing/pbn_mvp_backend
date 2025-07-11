@@ -1,0 +1,161 @@
+# v1.3 - 작업 추적 시스템 추가 (2025.01.08)
+# Docker Compose 설정 - 로컬 개발 및 PaaS 배포 준비
+version: '3.8'
+
+services:
+  # PostgreSQL 데이터베이스
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: followsales
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis (Celery 브로커 및 결과 백엔드)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # FastAPI 애플리케이션
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # 데이터베이스 설정
+      DATABASE_URL: postgresql://postgres:password@db:5432/followsales
+      
+      # Celery 설정 (Docker 네트워크 내부 주소)
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      
+      # 기타 환경변수 (실제 배포시 .env 파일이나 시크릿으로 관리)
+      SECRET_KEY: your-secret-key-here
+      DEBUG: "true"
+      
+      # API 키들 (실제 배포시 시크릿으로 관리)
+      CLERK_SECRET_KEY: your-clerk-secret
+      RESEND_API_KEY: your-resend-api-key
+      
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: >
+      sh -c "
+        # 마이그레이션 실행
+        alembic upgrade head &&
+        # FastAPI 서버 시작
+        uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      "
+
+  # Celery Worker
+  worker:
+    build: .
+    environment:
+      # 동일한 환경변수 설정
+      DATABASE_URL: postgresql://postgres:password@db:5432/followsales
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      
+      # Worker 전용 설정
+      PYTHONPATH: /app
+      
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: >
+      sh -c "
+        # 짧은 지연 후 Worker 시작 (DB 완전 준비 대기)
+        sleep 10 &&
+        # Celery Worker 시작 (Windows 호환 설정 유지)
+        celery -A app.tasks.celery_app worker --loglevel=info --pool=solo --concurrency=1
+      "
+
+  # Celery Beat Scheduler  
+  beat:
+    build: .
+    environment:
+      # 동일한 환경변수 설정
+      DATABASE_URL: postgresql://postgres:password@db:5432/followsales
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      
+      # Beat 전용 설정
+      PYTHONPATH: /app
+      
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    volumes:
+      - .:/app
+      - beat_schedule:/app/beat_schedule  # Beat 스케줄 파일 영구 저장
+    command: >
+      sh -c "
+        # Worker 완전 시작 대기
+        sleep 15 &&
+        # Celery Beat 시작
+        celery -A app.tasks.celery_app beat --loglevel=info --schedule=/app/beat_schedule/celerybeat-schedule
+      "
+
+  # Flower (Celery 모니터링) - 선택사항
+  flower:
+    build: .
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONPATH: /app
+    depends_on:
+      - redis
+      - worker
+    volumes:
+      - .:/app
+    command: >
+      sh -c "
+        sleep 20 &&
+        celery -A app.tasks.celery_app flower --port=5555
+      "
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  beat_schedule:
+    driver: local
+
+# PaaS 배포시 네트워크 설정 (선택사항)
+networks:
+  default:
+    name: followsales-network 
