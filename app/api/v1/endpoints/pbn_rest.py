@@ -126,29 +126,34 @@ async def rest_test_request(request: PbnSampleRequest):
     - 로그인된 사용자 이메일로 발송 (인증이 없으면 기본 이메일 사용)
     """
     try:
-        logger.info(f"PBN REST test request: {request.target_url} - {request.keyword}")
-
+        print("[rest_test_request] 1. 요청 시작", flush=True)
+        logger.info("[rest_test_request] 1. 요청 시작")
+        print(f"[rest_test_request] 2. 입력값: {request}", flush=True)
+        logger.info(f"[rest_test_request] 2. 입력값: {request}")
         # 1. PBN 사이트 조회 (활성 사이트만)
         random_pbn = supabase_client.get_random_active_pbn_site()
+        print(f"[rest_test_request] 3. 랜덤 PBN 조회 결과: {random_pbn}", flush=True)
+        logger.info(f"[rest_test_request] 3. 랜덤 PBN 조회 결과: {random_pbn}")
         if not random_pbn:
+            print("[rest_test_request] 4. 활성 PBN 사이트 없음", flush=True)
+            logger.error("[rest_test_request] 4. 활성 PBN 사이트 없음")
             raise HTTPException(status_code=500, detail="활성 PBN 사이트가 없습니다")
-
-        logger.info(f"Selected PBN site: {random_pbn['domain']}")
-
-        # 2. 사용자 정보 설정 (기본 이메일 사용) 🔧
-        user_email = "vnfm0580@gmail.com"  # 🔧 기본 이메일 사용
-        clerk_id = f"manual_user_{int(datetime.utcnow().timestamp())}"  # 고유 ID 생성
-
-        # Supabase에서 이메일로 기존 사용자 찾기
+        # 2. 사용자 정보 설정 (기본 이메일 사용)
+        user_email = "vnfm0580@gmail.com"
+        clerk_id = f"manual_user_{int(datetime.utcnow().timestamp())}"
         existing_users = supabase_client._make_request(
             "GET", "users", params={"email": f"eq.{user_email}"}, use_service_role=True
         )
-
+        print(
+            f"[rest_test_request] 5. 기존 사용자 조회 결과: {existing_users}",
+            flush=True,
+        )
+        logger.info(f"[rest_test_request] 5. 기존 사용자 조회 결과: {existing_users}")
         if existing_users and len(existing_users) > 0:
             user = existing_users[0]
-            logger.info(f"✅ Using existing user: {user['id']} ({user['email']})")
+            print(f"[rest_test_request] 6. 기존 사용자 사용: {user}", flush=True)
+            logger.info(f"[rest_test_request] 6. 기존 사용자 사용: {user}")
         else:
-            # 새 사용자 생성
             user_data = {
                 "email": user_email,
                 "clerk_id": clerk_id,
@@ -157,12 +162,11 @@ async def rest_test_request(request: PbnSampleRequest):
                 "updated_at": datetime.utcnow().isoformat(),
             }
             user = supabase_client.create_user(user_data)
-            logger.info(f"✅ Created new user: {user['id']} ({user['email']})")
-
+            print(f"[rest_test_request] 7. 새 사용자 생성: {user}", flush=True)
+            logger.info(f"[rest_test_request] 7. 새 사용자 생성: {user}")
         # 3. 주문 생성
         order_id = str(uuid.uuid4())
         selected_pbn = random_pbn
-
         order_data = {
             "id": order_id,
             "user_id": user["id"],
@@ -173,7 +177,7 @@ async def rest_test_request(request: PbnSampleRequest):
             "order_metadata": {
                 "target_url": request.target_url,
                 "keyword": request.keyword,
-                "request_type": "manual_test",  # 🔧 수동 테스트
+                "request_type": "manual_test",
                 "pbn_count": 1,
                 "selected_pbn_site": selected_pbn["domain"],
                 "method": "supabase_rest_api",
@@ -181,24 +185,24 @@ async def rest_test_request(request: PbnSampleRequest):
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat(),
         }
-
         order = supabase_client.create_order(order_data)
+        print(f"[rest_test_request] 8. 주문 생성 결과: {order}", flush=True)
+        logger.info(f"[rest_test_request] 8. 주문 생성 결과: {order}")
         if not order:
+            print("[rest_test_request] 9. 주문 생성 실패", flush=True)
+            logger.error("[rest_test_request] 9. 주문 생성 실패")
             raise HTTPException(status_code=500, detail="주문 생성 실패")
-
-        logger.info(f"REST order created: {order['id']} for user {user['email']}")
-
-        # 4. 주문 확인 이메일 발송 (Redis 연결 처리)
+        # 4. 이메일 발송 Celery Task 등록
         email_task_status = "scheduled"
         pbn_task_status = "scheduled"
-
-        # 이메일 발송 태스크 등록
         try:
             from app.tasks.email_tasks import send_order_confirmation_email
 
+            print("[rest_test_request] 10. 이메일 태스크 등록 시도", flush=True)
+            logger.info("[rest_test_request] 10. 이메일 태스크 등록 시도")
             send_order_confirmation_email.apply_async(
                 args=[
-                    user["email"],  # vnfm0580@gmail.com으로 발송
+                    user["email"],
                     order["id"],
                     {
                         "target_url": request.target_url,
@@ -208,15 +212,18 @@ async def rest_test_request(request: PbnSampleRequest):
                 ],
                 queue="default",
             )
-            logger.info("✅ 이메일 태스크가 Redis 큐에 등록되었습니다")
+            print("[rest_test_request] 11. 이메일 태스크 큐 등록 완료", flush=True)
+            logger.info("[rest_test_request] 11. 이메일 태스크 큐 등록 완료")
         except Exception as e:
-            logger.warning(f"⚠️ 이메일 태스크 등록 실패 (Redis 연결 문제): {str(e)}")
+            print(f"[rest_test_request] 12. 이메일 태스크 등록 실패: {e}", flush=True)
+            logger.warning(f"[rest_test_request] 12. 이메일 태스크 등록 실패: {e}")
             email_task_status = "failed_redis_connection"
-
-        # PBN 백링크 구축 태스크 등록
+        # 5. PBN 백링크 구축 Celery Task 등록
         try:
             from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
 
+            print("[rest_test_request] 13. PBN 태스크 등록 시도", flush=True)
+            logger.info("[rest_test_request] 13. PBN 태스크 등록 시도")
             create_pbn_backlink_rest.apply_async(
                 args=[
                     order["id"],
@@ -226,12 +233,13 @@ async def rest_test_request(request: PbnSampleRequest):
                 ],
                 queue="default",
             )
-            logger.info("✅ PBN 백링크 태스크가 Redis 큐에 등록되었습니다")
+            print("[rest_test_request] 14. PBN 태스크 큐 등록 완료", flush=True)
+            logger.info("[rest_test_request] 14. PBN 태스크 큐 등록 완료")
         except Exception as e:
-            logger.warning(f"⚠️ PBN 태스크 등록 실패 (Redis 연결 문제): {str(e)}")
+            print(f"[rest_test_request] 15. PBN 태스크 등록 실패: {e}", flush=True)
+            logger.warning(f"[rest_test_request] 15. PBN 태스크 등록 실패: {e}")
             pbn_task_status = "failed_redis_connection"
-
-        # Redis 연결 상태에 따른 메시지 설정
+        # 6. 결과 메시지
         if (
             email_task_status == "failed_redis_connection"
             or pbn_task_status == "failed_redis_connection"
@@ -243,32 +251,22 @@ async def rest_test_request(request: PbnSampleRequest):
             message = "PBN 백링크 구축이 시작되었습니다! 이메일을 확인해주세요"
             note = "✅ Redis 서비스 연결 완료, 백그라운드 처리 중 (이메일 발송됨)"
             method = "supabase_rest_api_with_redis"
-
+        print(
+            f"[rest_test_request] 16. 최종 반환: {message}, {note}, {method}",
+            flush=True,
+        )
+        logger.info(f"[rest_test_request] 16. 최종 반환: {message}, {note}, {method}")
         return {
             "success": True,
             "message": message,
             "order_id": order["id"],
-            "task_id": f"rest-task-{order['id']}",
-            "estimated_completion": "5-10분 이내",
-            "user_email": user["email"],  # 🔧 vnfm0580@gmail.com
             "note": note,
-            "status": "pending",
-            "selected_pbn_site": selected_pbn["domain"],
-            "total_pbn_sites": 1,
             "method": method,
-            "redis_status": {
-                "email_task": email_task_status,
-                "pbn_task": pbn_task_status,
-            },
         }
-
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"PBN REST test request failed: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"REST 요청 처리 중 오류가 발생했습니다: {str(e)}"
-        )
+        print(f"[rest_test_request] 17. 예외 발생: {e}", flush=True)
+        logger.error(f"[rest_test_request] 17. 예외 발생: {e}")
+        raise
 
 
 @router.get("/pbn/rest-orders/{order_id}/status")
@@ -290,5 +288,22 @@ async def rest_order_status(order_id: str):
 
 @router.post("/pbn/sample-request", tags=["pbn"])
 async def sample_request_alias(request: PbnSampleRequest):
-    """/pbn/sample-request 경로 호환용 (rest_test_request 재사용)"""
-    return await rest_test_request(request)
+    """
+    /pbn/sample-request 경로 호환용 (rest_test_request 재사용)
+    """
+    try:
+        print("[sample_request_alias] 1. 요청 시작", flush=True)
+        logger.info("[sample_request_alias] 1. 요청 시작")
+        print(f"[sample_request_alias] 2. 입력값: {request}", flush=True)
+        logger.info(f"[sample_request_alias] 2. 입력값: {request}")
+        # 실제 rest_test_request 호출 전후로도 print/log 추가
+        result = await rest_test_request(request)
+        print("[sample_request_alias] 3. rest_test_request 호출 완료", flush=True)
+        logger.info("[sample_request_alias] 3. rest_test_request 호출 완료")
+        print(f"[sample_request_alias] 4. 반환값: {result}", flush=True)
+        logger.info(f"[sample_request_alias] 4. 반환값: {result}")
+        return result
+    except Exception as e:
+        print(f"[sample_request_alias] 5. 예외 발생: {e}", flush=True)
+        logger.error(f"[sample_request_alias] 5. 예외 발생: {e}")
+        raise
