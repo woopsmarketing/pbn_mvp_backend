@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import uuid
 from datetime import datetime
 import logging
+from fastapi.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
 
@@ -32,25 +33,27 @@ async def sample_request(
     - Celery 백그라운드 작업 시작
     """
     try:
-        # Clerk JWT 토큰에서 사용자 ID 추출 (sub 키 사용)
+        print("[sample_request] 1. Clerk JWT 토큰 파싱 시작")
         clerk_id = current_user.get("sub")
         if not clerk_id:
+            print("[sample_request] Clerk ID 없음")
             logger.error("Clerk ID missing from token")
             raise HTTPException(status_code=400, detail="Clerk ID가 토큰에 없습니다")
 
+        print(f"[sample_request] 2. Clerk ID: {clerk_id}")
         logger.info(f"PBN sample request from clerk_id: {clerk_id}")
 
-        # 사용자 확인 (clerk_id로 조회)
         user = db.query(User).filter(User.clerk_id == clerk_id).first()
         if not user:
+            print("[sample_request] 사용자 없음")
             raise HTTPException(
                 status_code=404,
                 detail="사용자를 찾을 수 없습니다. 먼저 /verify 엔드포인트를 통해 인증해주세요.",
             )
 
+        print(f"[sample_request] 3. 사용자 확인: {user.id} ({user.email})")
         logger.info(f"User found: {user.id} ({user.email})")
 
-        # 주문 생성
         new_order = Order(
             user_id=user.id,
             type="free_pbn",
@@ -69,16 +72,19 @@ async def sample_request(
         db.commit()
         db.refresh(new_order)
 
+        print(f"[sample_request] 4. 주문 생성 완료: {new_order.id}")
         logger.info(f"Order created: {new_order.id}")
 
         # Celery 태스크 실행
-        task_result = create_pbn_backlink_task.delay(
-            order_id=str(new_order.id),
-            target_url=request.target_url,
-            anchor_text=request.keyword,
-            keywords=[request.keyword],
+        print("[sample_request] 5. Celery Task 큐 등록 시도")
+        task_result = await run_in_threadpool(
+            create_pbn_backlink_task.delay,
+            str(new_order.id),
+            request.target_url,
+            request.keyword,
+            [request.keyword],
         )
-
+        print(f"[sample_request] 6. Celery Task 큐 등록 완료: {task_result.id}")
         logger.info(f"Celery task started: {task_result.id}")
 
         return {
@@ -91,6 +97,7 @@ async def sample_request(
         }
 
     except Exception as e:
+        print(f"[sample_request] 7. 예외 발생: {str(e)}")
         logger.error(f"PBN sample request failed: {str(e)}")
         db.rollback()
         raise HTTPException(
