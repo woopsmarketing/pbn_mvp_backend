@@ -32,6 +32,10 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
 
+# 실제 적용된 브로커/백엔드 주소를 명확하게 로그로 출력 (환경변수 적용 진단)
+print("[Celery 환경] CELERY_BROKER_URL:", CELERY_BROKER_URL)
+print("[Celery 환경] CELERY_RESULT_BACKEND:", CELERY_RESULT_BACKEND)
+
 # Celery 앱 생성 (celery_worker.py와 동일한 이름 사용)
 celery = Celery("followsales")
 

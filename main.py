@@ -67,3 +67,7 @@ async def global_exception_handler(request: Request, exc: Exception):
             "traceback": traceback.format_exc(),
         },
     )
+
+
+print("[FastAPI 환경] CELERY_BROKER_URL:", os.getenv("CELERY_BROKER_URL"))
+print("[FastAPI 환경] CELERY_RESULT_BACKEND:", os.getenv("CELERY_RESULT_BACKEND"))
