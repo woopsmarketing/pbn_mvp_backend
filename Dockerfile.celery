@@ -1,0 +1,13 @@
+# v1.0 - Celery 워커 서비스용 Dockerfile (2024.07.03)
+# 한글 주석: Celery 워커 컨테이너 빌드 및 실행용 Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# Cloudtype에서는 CMD를 동적으로 지정할 수 있으나, 기본값은 Celery 워커로 설정
+CMD ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info"] 
