@@ -13,7 +13,11 @@ from celery.schedules import crontab
 from dotenv import load_dotenv
 from kombu import Exchange, Queue
 
+# Celery 앱 생성 (celery_worker.py와 동일한 이름 사용)
+celery = Celery("followsales")
+
 # v1.1 - Celery 워커 Task 모듈 명시적 import (2025.07.15)
+# celery 인스턴스 생성 이후에만 import (순환 참조 방지)
 import app.tasks.email_tasks  # 이메일 관련 태스크 등록
 import app.tasks.pbn_rest_tasks  # REST PBN 태스크 등록
 
@@ -41,8 +45,6 @@ print("[Celery 환경] CELERY_BROKER_URL:", CELERY_BROKER_URL)
 print("[Celery 환경] CELERY_RESULT_BACKEND:", CELERY_RESULT_BACKEND)
 
 # Celery 앱 생성 (celery_worker.py와 동일한 이름 사용)
-celery = Celery("followsales")
-
 # Celery Beat 스케줄 설정
 beat_schedule = {
     # 매일 새벽 2시에 PBN 사이트 상태 체크
