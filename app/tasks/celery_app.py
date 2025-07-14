@@ -13,6 +13,10 @@ from celery.schedules import crontab
 from dotenv import load_dotenv
 from kombu import Exchange, Queue
 
+# v1.1 - Celery 워커 Task 모듈 명시적 import (2025.07.15)
+import app.tasks.email_tasks  # 이메일 관련 태스크 등록
+import app.tasks.pbn_rest_tasks  # REST PBN 태스크 등록
+
 # 환경변수 로드
 load_dotenv()
 
