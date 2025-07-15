@@ -197,6 +197,7 @@ async def rest_test_request(request: PbnSampleRequest):
         pbn_task_status = "scheduled"
         try:
             from app.tasks.email_tasks import send_order_confirmation_email
+            import redis
 
             print("[rest_test_request] 10. 이메일 태스크 등록 시도", flush=True)
             logger.info("[rest_test_request] 10. 이메일 태스크 등록 시도")
@@ -211,6 +212,32 @@ async def rest_test_request(request: PbnSampleRequest):
             logger.info(
                 f"[rest_test_request] 10-2. 브로커 주소: {os.getenv('CELERY_BROKER_URL')}"
             )
+
+            # Redis 큐 상태 확인 (태스크 등록 전)
+            try:
+                r = redis.Redis(
+                    host=os.getenv("REDIS_HOST", "redis"),
+                    port=int(os.getenv("REDIS_PORT", 6379)),
+                    db=0,
+                )
+                celery_len_before = r.llen("celery")
+                default_len_before = r.llen("default")
+                print(
+                    f"[rest_test_request] 10-3. 태스크 등록 전 큐 상태 - celery: {celery_len_before}, default: {default_len_before}",
+                    flush=True,
+                )
+                logger.info(
+                    f"[rest_test_request] 10-3. 태스크 등록 전 큐 상태 - celery: {celery_len_before}, default: {default_len_before}"
+                )
+            except Exception as redis_e:
+                print(
+                    f"[rest_test_request] 10-4. Redis 큐 상태 확인 실패: {redis_e}",
+                    flush=True,
+                )
+                logger.warning(
+                    f"[rest_test_request] 10-4. Redis 큐 상태 확인 실패: {redis_e}"
+                )
+
             # queue 파라미터를 빼고 기본값(celery)로도 테스트할 수 있도록 주석 처리
             # send_order_confirmation_email.apply_async(
             #     args=[
@@ -239,6 +266,26 @@ async def rest_test_request(request: PbnSampleRequest):
             )
             print("[rest_test_request] 11. 이메일 태스크 큐 등록 완료", flush=True)
             logger.info("[rest_test_request] 11. 이메일 태스크 큐 등록 완료")
+
+            # Redis 큐 상태 확인 (태스크 등록 후)
+            try:
+                celery_len_after = r.llen("celery")
+                default_len_after = r.llen("default")
+                print(
+                    f"[rest_test_request] 11-1. 태스크 등록 후 큐 상태 - celery: {celery_len_after}, default: {default_len_after}",
+                    flush=True,
+                )
+                logger.info(
+                    f"[rest_test_request] 11-1. 태스크 등록 후 큐 상태 - celery: {celery_len_after}, default: {default_len_after}"
+                )
+            except Exception as redis_e:
+                print(
+                    f"[rest_test_request] 11-2. Redis 큐 상태 확인 실패: {redis_e}",
+                    flush=True,
+                )
+                logger.warning(
+                    f"[rest_test_request] 11-2. Redis 큐 상태 확인 실패: {redis_e}"
+                )
         except Exception as e:
             print(f"[rest_test_request] 12. 이메일 태스크 등록 실패: {e}", flush=True)
             logger.warning(f"[rest_test_request] 12. 이메일 태스크 등록 실패: {e}")
@@ -260,6 +307,27 @@ async def rest_test_request(request: PbnSampleRequest):
 
             print("[rest_test_request] 13. PBN 태스크 등록 시도", flush=True)
             logger.info("[rest_test_request] 13. PBN 태스크 등록 시도")
+
+            # Redis 큐 상태 확인 (PBN 태스크 등록 전)
+            try:
+                celery_len_before = r.llen("celery")
+                default_len_before = r.llen("default")
+                print(
+                    f"[rest_test_request] 13-1. PBN 태스크 등록 전 큐 상태 - celery: {celery_len_before}, default: {default_len_before}",
+                    flush=True,
+                )
+                logger.info(
+                    f"[rest_test_request] 13-1. PBN 태스크 등록 전 큐 상태 - celery: {celery_len_before}, default: {default_len_before}"
+                )
+            except Exception as redis_e:
+                print(
+                    f"[rest_test_request] 13-2. Redis 큐 상태 확인 실패: {redis_e}",
+                    flush=True,
+                )
+                logger.warning(
+                    f"[rest_test_request] 13-2. Redis 큐 상태 확인 실패: {redis_e}"
+                )
+
             create_pbn_backlink_rest.apply_async(
                 args=[
                     order["id"],
@@ -271,6 +339,26 @@ async def rest_test_request(request: PbnSampleRequest):
             )
             print("[rest_test_request] 14. PBN 태스크 큐 등록 완료", flush=True)
             logger.info("[rest_test_request] 14. PBN 태스크 큐 등록 완료")
+
+            # Redis 큐 상태 확인 (PBN 태스크 등록 후)
+            try:
+                celery_len_after = r.llen("celery")
+                default_len_after = r.llen("default")
+                print(
+                    f"[rest_test_request] 14-1. PBN 태스크 등록 후 큐 상태 - celery: {celery_len_after}, default: {default_len_after}",
+                    flush=True,
+                )
+                logger.info(
+                    f"[rest_test_request] 14-1. PBN 태스크 등록 후 큐 상태 - celery: {celery_len_after}, default: {default_len_after}"
+                )
+            except Exception as redis_e:
+                print(
+                    f"[rest_test_request] 14-2. Redis 큐 상태 확인 실패: {redis_e}",
+                    flush=True,
+                )
+                logger.warning(
+                    f"[rest_test_request] 14-2. Redis 큐 상태 확인 실패: {redis_e}"
+                )
         except Exception as e:
             print(f"[rest_test_request] 15. PBN 태스크 등록 실패: {e}", flush=True)
             logger.warning(f"[rest_test_request] 15. PBN 태스크 등록 실패: {e}")
