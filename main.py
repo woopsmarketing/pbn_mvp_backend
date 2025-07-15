@@ -12,6 +12,7 @@ from app.api.v1.endpoints.reports import router as reports_router
 from app.api.v1.endpoints.events import router as events_router
 from app.api.v1.endpoints.verify import router as verify_router
 from app.api.v1.endpoints.pbn_rest import router as pbn_rest_router
+from app.api.v1.endpoints.redis_debug import router as redis_debug_router
 from app.api.monitoring import router as monitoring_router
 from app.core.config import settings
 import sentry_sdk
@@ -50,6 +51,7 @@ app.include_router(reports_router, prefix="/api/v1/reports", tags=["reports"])
 app.include_router(events_router, prefix="/api/v1/events", tags=["events"])
 app.include_router(verify_router, prefix="/api/v1", tags=["verify"])
 app.include_router(pbn_rest_router, prefix="/api/v1", tags=["pbn"])
+app.include_router(redis_debug_router, prefix="/api/v1/debug", tags=["debug"])
 app.include_router(monitoring_router, prefix="/api/v1", tags=["monitoring"])
 
 # Add Sentry middleware

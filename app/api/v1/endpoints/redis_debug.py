@@ -5,8 +5,8 @@
 from fastapi import APIRouter, HTTPException
 import redis
 import json
+import os
 from datetime import datetime
-from app.core.config import settings
 
 router = APIRouter()
 
@@ -22,8 +22,8 @@ def debug_redis_queue_status():
     try:
         # Redis 연결 (실제 환경변수 사용)
         r = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
+            host=os.getenv("REDIS_HOST", "redis"),
+            port=int(os.getenv("REDIS_PORT", 6379)),
             db=0,
             decode_responses=True,
         )
@@ -47,8 +47,8 @@ def debug_redis_queue_status():
         redis_info = {
             "connection": "성공",
             "ping": ping_result,
-            "host": settings.REDIS_HOST,
-            "port": settings.REDIS_PORT,
+            "host": os.getenv('REDIS_HOST', 'redis'),
+            "port": os.getenv('REDIS_PORT', '6379'),
             "total_keys": len(all_keys),
             "celery_related_keys": celery_keys,
         }
@@ -102,8 +102,8 @@ def debug_redis_queue_status():
             "error": "Redis 연결 실패",
             "details": str(e),
             "redis_config": {
-                "host": getattr(settings, "REDIS_HOST", "undefined"),
-                "port": getattr(settings, "REDIS_PORT", "undefined"),
+                "host": os.getenv("REDIS_HOST", "redis"),
+                "port": os.getenv("REDIS_PORT", "6379"),
             },
         }
     except Exception as e:
@@ -123,8 +123,8 @@ def debug_test_redis_task():
     """
     try:
         r = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
+            host=os.getenv("REDIS_HOST", "redis"),
+            port=int(os.getenv("REDIS_PORT", 6379)),
             db=0,
             decode_responses=True,
         )
@@ -184,8 +184,8 @@ def debug_clear_redis_queue(queue_name: str):
 
     try:
         r = redis.Redis(
-            host=settings.REDIS_HOST,
-            port=settings.REDIS_PORT,
+            host=os.getenv('REDIS_HOST', 'redis'),
+            port=int(os.getenv('REDIS_PORT', 6379)),
             db=0,
             decode_responses=True,
         )
