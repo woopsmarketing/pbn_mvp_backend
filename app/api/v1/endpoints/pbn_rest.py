@@ -118,7 +118,7 @@ def get_pbn_sites_via_rest():
         return []
 
 
-@router.post("/rest-test-request")
+@router.post("/pbn/rest-test-request")
 async def rest_test_request(request: PbnSampleRequest):
     """REST API 기반 PBN 백링크 요청 처리"""
     logger.info(
@@ -238,7 +238,7 @@ async def rest_test_request(request: PbnSampleRequest):
 
 
 # 별칭 엔드포인트 (기존 호환성을 위해)
-@router.post("/sample-request")
+@router.post("/pbn/sample-request")
 async def sample_request_alias(request: PbnSampleRequest):
     """기존 sample-request 엔드포인트 별칭"""
     logger.info("sample-request 별칭을 통한 요청")
