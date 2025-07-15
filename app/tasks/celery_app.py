@@ -94,6 +94,24 @@ celery.conf.update(
     # 브로커 및 결과 백엔드 설정
     broker_url=CELERY_BROKER_URL,
     result_backend=CELERY_RESULT_BACKEND,
+    # 큐 설정 - default 큐 명시적 추가
+    task_default_queue="default",
+    task_default_exchange="default",
+    task_default_exchange_type="direct",
+    task_default_routing_key="default",
+    # 큐 정의
+    task_queues=(
+        Queue("default", Exchange("default"), routing_key="default"),
+        Queue("celery", Exchange("celery"), routing_key="celery"),
+    ),
+    # 라우팅 설정
+    task_routes={
+        "app.tasks.email_tasks.*": {"queue": "default"},
+        "app.tasks.pbn_rest_tasks.*": {"queue": "default"},
+        "app.tasks.pbn_tasks.*": {"queue": "default"},
+        "app.tasks.report_tasks.*": {"queue": "default"},
+        "app.tasks.scheduled_tasks.*": {"queue": "default"},
+    },
     # Windows 호환성을 위한 설정
     worker_pool="solo",
     worker_concurrency=1,

@@ -47,8 +47,8 @@ def debug_redis_queue_status():
         redis_info = {
             "connection": "성공",
             "ping": ping_result,
-            "host": os.getenv('REDIS_HOST', 'redis'),
-            "port": os.getenv('REDIS_PORT', '6379'),
+            "host": os.getenv("REDIS_HOST", "redis"),
+            "port": os.getenv("REDIS_PORT", "6379"),
             "total_keys": len(all_keys),
             "celery_related_keys": celery_keys,
         }
@@ -184,8 +184,8 @@ def debug_clear_redis_queue(queue_name: str):
 
     try:
         r = redis.Redis(
-            host=os.getenv('REDIS_HOST', 'redis'),
-            port=int(os.getenv('REDIS_PORT', 6379)),
+            host=os.getenv("REDIS_HOST", "redis"),
+            port=int(os.getenv("REDIS_PORT", 6379)),
             db=0,
             decode_responses=True,
         )
@@ -213,4 +213,49 @@ def debug_clear_redis_queue(queue_name: str):
             "error": f"{queue_name} 큐 비우기 실패",
             "details": str(e),
             "type": type(e).__name__,
+        }
+
+
+@router.delete("/redis-clear-all-queues")
+async def clear_all_redis_queues():
+    """모든 Redis 큐 정리"""
+    try:
+        # Redis 연결
+        redis_client = redis.Redis(
+            host=os.getenv("REDIS_HOST", "svc.sel4.cloudtype.app"),
+            port=int(os.getenv("REDIS_PORT", "31188")),
+            db=0,
+            decode_responses=True,
+        )
+
+        # 모든 큐 정리
+        queues_to_clear = ["default", "celery"]
+        cleared_counts = {}
+
+        for queue_name in queues_to_clear:
+            count = redis_client.llen(queue_name)
+            if count > 0:
+                redis_client.delete(queue_name)
+                cleared_counts[queue_name] = count
+            else:
+                cleared_counts[queue_name] = 0
+
+        # 결과 확인
+        final_counts = {}
+        for queue_name in queues_to_clear:
+            final_counts[queue_name] = redis_client.llen(queue_name)
+
+        return {
+            "success": True,
+            "message": "모든 큐가 정리되었습니다",
+            "cleared_counts": cleared_counts,
+            "final_counts": final_counts,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Redis 큐 정리 실패: {str(e)}",
+            "timestamp": datetime.now().isoformat(),
         }
