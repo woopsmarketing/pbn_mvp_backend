@@ -200,6 +200,31 @@ async def rest_test_request(request: PbnSampleRequest):
 
             print("[rest_test_request] 10. 이메일 태스크 등록 시도", flush=True)
             logger.info("[rest_test_request] 10. 이메일 태스크 등록 시도")
+            print(f"[rest_test_request] 10-1. 큐 이름: default", flush=True)
+            logger.info(f"[rest_test_request] 10-1. 큐 이름: default")
+            import os
+
+            print(
+                f"[rest_test_request] 10-2. 브로커 주소: {os.getenv('CELERY_BROKER_URL')}",
+                flush=True,
+            )
+            logger.info(
+                f"[rest_test_request] 10-2. 브로커 주소: {os.getenv('CELERY_BROKER_URL')}"
+            )
+            # queue 파라미터를 빼고 기본값(celery)로도 테스트할 수 있도록 주석 처리
+            # send_order_confirmation_email.apply_async(
+            #     args=[
+            #         user["email"],
+            #         order["id"],
+            #         {
+            #             "target_url": request.target_url,
+            #             "keyword": request.keyword,
+            #             "pbn_domain": selected_pbn["domain"],
+            #         },
+            #     ],
+            #     # queue="default",
+            # )
+            # 기본값 celery로 큐 등록 테스트
             send_order_confirmation_email.apply_async(
                 args=[
                     user["email"],
@@ -217,6 +242,17 @@ async def rest_test_request(request: PbnSampleRequest):
         except Exception as e:
             print(f"[rest_test_request] 12. 이메일 태스크 등록 실패: {e}", flush=True)
             logger.warning(f"[rest_test_request] 12. 이메일 태스크 등록 실패: {e}")
+            import os
+
+            print(f"[rest_test_request] 12-1. 큐 이름: default", flush=True)
+            print(
+                f"[rest_test_request] 12-2. 브로커 주소: {os.getenv('CELERY_BROKER_URL')}",
+                flush=True,
+            )
+            print(
+                f"[rest_test_request] 12-3. 환경변수 CELERY_RESULT_BACKEND: {os.getenv('CELERY_RESULT_BACKEND')}",
+                flush=True,
+            )
             email_task_status = "failed_redis_connection"
         # 5. PBN 백링크 구축 Celery Task 등록
         try:

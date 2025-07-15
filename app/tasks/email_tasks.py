@@ -13,6 +13,14 @@ from app.services.supabase_client import supabase
 logger = logging.getLogger(__name__)
 
 
+# 디버깅용 print 함수
+def debug_print(message: str, task_name: str = ""):
+    """디버깅용 print 함수"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] [EMAIL_TASK] [{task_name}] {message}")
+    logger.info(f"[EMAIL_TASK] [{task_name}] {message}")
+
+
 def safe_str(value, default="N/A"):
     """
     안전한 문자열 변환 함수
@@ -38,7 +46,11 @@ def send_welcome_email(user_email: str):
     Args:
         user_email: 사용자 이메일 주소
     """
+    debug_print(f"=== 환영 이메일 태스크 시작 ===", "send_welcome_email")
+    debug_print(f"수신자: {user_email}", "send_welcome_email")
+
     try:
+        debug_print("EmailService 초기화 중...", "send_welcome_email")
         email_service = EmailService()
 
         # HTML 콘텐츠
@@ -60,13 +72,16 @@ def send_welcome_email(user_email: str):
         </div>
         """
 
+        debug_print("이메일 발송 시작...", "send_welcome_email")
         # 이메일 발송
         result = email_service.send_email(
             to_email=user_email,
             subject="[FollowSales] 환영합니다! 🎉",
             html_content=html_content,
         )
+        debug_print(f"이메일 발송 결과: {result}", "send_welcome_email")
 
+        debug_print("이메일 로그 저장 시작...", "send_welcome_email")
         # Supabase REST API로 이메일 로그 저장
         create_email_log_via_api(
             email_type="welcome",
@@ -78,6 +93,7 @@ def send_welcome_email(user_email: str):
             status="sent" if result.get("success") else "failed",
         )
 
+        debug_print(f"환영 이메일 태스크 완료 - 성공", "send_welcome_email")
         logger.info(f"Welcome email sent to {user_email}")
         return {
             "success": True,
@@ -86,6 +102,7 @@ def send_welcome_email(user_email: str):
         }
 
     except Exception as e:
+        debug_print(f"환영 이메일 태스크 실패: {e}", "send_welcome_email")
         logger.error(f"Failed to send welcome email: {e}")
         return {"success": False, "error": str(e)}
 
@@ -99,11 +116,25 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
         order_id: 주문 ID
         order_details: 주문 상세 정보
     """
+    debug_print(
+        f"=== 주문 확인 이메일 태스크 시작 ===", "send_order_confirmation_email"
+    )
+    debug_print(
+        f"수신자: {user_email}, 주문ID: {order_id}", "send_order_confirmation_email"
+    )
+    debug_print(f"주문 상세: {order_details}", "send_order_confirmation_email")
+
     try:
+        debug_print("EmailService 초기화 중...", "send_order_confirmation_email")
         email_service = EmailService()
 
         target_url = safe_str(order_details.get("target_url", ""))
         keyword = safe_str(order_details.get("keyword", ""))
+
+        debug_print(
+            f"처리할 URL: {target_url}, 키워드: {keyword}",
+            "send_order_confirmation_email",
+        )
 
         # HTML 콘텐츠
         html_content = f"""
@@ -132,13 +163,16 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
         </div>
         """
 
+        debug_print("이메일 발송 시작...", "send_order_confirmation_email")
         # 이메일 발송
         result = email_service.send_email(
             to_email=user_email,
             subject=f"[FollowSales] 주문이 접수되었습니다 - {order_id}",
             html_content=html_content,
         )
+        debug_print(f"이메일 발송 결과: {result}", "send_order_confirmation_email")
 
+        debug_print("이메일 로그 저장 시작...", "send_order_confirmation_email")
         # Supabase REST API로 이메일 로그 저장
         create_email_log_via_api(
             email_type="order_confirmation",
@@ -155,6 +189,9 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
             status="sent" if result.get("success") else "failed",
         )
 
+        debug_print(
+            f"주문 확인 이메일 태스크 완료 - 성공", "send_order_confirmation_email"
+        )
         logger.info(f"Order confirmation email sent to {user_email}")
         return {
             "success": True,
@@ -163,6 +200,9 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
         }
 
     except Exception as e:
+        debug_print(
+            f"주문 확인 이메일 태스크 실패: {e}", "send_order_confirmation_email"
+        )
         logger.error(f"Failed to send order confirmation email: {e}")
         return {"success": False, "error": str(e)}
 
@@ -561,6 +601,11 @@ def create_email_log_via_api(
         status: 상태
     """
     try:
+        debug_print(
+            f"이메일 로그 저장 시작: {email_type} -> {recipient_email}",
+            "create_email_log_via_api",
+        )
+
         # 제목 길이 제한 (200자)
         subject_limited = subject[:200] if subject else ""
 
@@ -582,13 +627,17 @@ def create_email_log_via_api(
         if extra_data:
             log_data["extra_data"] = extra_data
 
+        debug_print(f"Supabase에 삽입할 데이터: {log_data}", "create_email_log_via_api")
+
         # Supabase에 삽입
         result = supabase.table("email_logs").insert(log_data).execute()
 
+        debug_print(f"이메일 로그 저장 완료: {result.data}", "create_email_log_via_api")
         logger.info(f"Email log saved via API: {email_type} to {recipient_email}")
         return result.data
 
     except Exception as e:
+        debug_print(f"이메일 로그 저장 실패: {e}", "create_email_log_via_api")
         logger.error(f"Failed to save email log via API: {e}")
         # 이메일 로그 저장 실패해도 이메일 발송은 성공으로 처리
         return None
