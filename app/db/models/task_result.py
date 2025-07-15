@@ -5,9 +5,21 @@
 - 모니터링 및 디버깅 용도로 활용
 """
 
+from enum import Enum
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, JSON
 from sqlalchemy.sql import func
-from app.db.base_class import Base
+from app.db.base import Base
+
+
+class TaskStatus(str, Enum):
+    """작업 상태 열거형"""
+
+    PENDING = "PENDING"  # 대기 중
+    STARTED = "STARTED"  # 시작됨
+    SUCCESS = "SUCCESS"  # 성공
+    FAILURE = "FAILURE"  # 실패
+    RETRY = "RETRY"  # 재시도 중
+    REVOKED = "REVOKED"  # 취소됨
 
 
 class TaskResult(Base):
