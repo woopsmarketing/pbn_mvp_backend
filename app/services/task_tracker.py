@@ -8,7 +8,7 @@ from sqlalchemy import desc, and_, func
 import traceback as tb
 import logging
 
-from app.models.task_result import TaskResult, TaskStatus
+from app.db.models.task_result import TaskResult, TaskStatus
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)

@@ -7,7 +7,7 @@ from datetime import datetime
 import logging
 
 from app.services.task_tracker import TaskTracker
-from app.models.task_result import TaskStatus
+from app.db.models.task_result import TaskStatus
 
 logger = logging.getLogger(__name__)
 

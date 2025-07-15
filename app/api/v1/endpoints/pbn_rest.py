@@ -106,7 +106,7 @@ def get_pbn_sites_via_rest():
         "Content-Type": "application/json",
     }
 
-    url = f"{supabase['url']}/rest/v1/pbn_sites?active=eq.true"
+    url = f"{supabase['url']}/rest/v1/pbn_sites?status=eq.active"
 
     response = requests.get(url, headers=headers)
     if response.status_code == 200:

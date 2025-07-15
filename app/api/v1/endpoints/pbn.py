@@ -20,7 +20,7 @@ class PbnSampleRequest(BaseModel):
     keyword: str
 
 
-@router.post("/pbn/sample-request")
+@router.post("/pbn/db-sample-request")
 async def sample_request(
     request: PbnSampleRequest,
     db: Session = Depends(get_db),
@@ -105,7 +105,7 @@ async def sample_request(
         )
 
 
-@router.post("/pbn/test-request")
+@router.post("/pbn/db-test-request")
 async def test_request(
     request: PbnSampleRequest,
     db: Session = Depends(get_db),
@@ -177,7 +177,7 @@ async def test_request(
         )
 
 
-@router.get("/pbn/orders/{order_id}/status")
+@router.get("/pbn/db-orders/{order_id}/status")
 async def get_order_status(
     order_id: str,
     db: Session = Depends(get_db),
@@ -225,7 +225,7 @@ async def get_order_status(
         )
 
 
-@router.get("/pbn/test-orders/{order_id}/status")
+@router.get("/pbn/db-test-orders/{order_id}/status")
 async def get_test_order_status(
     order_id: str,
     db: Session = Depends(get_db),

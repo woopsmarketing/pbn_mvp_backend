@@ -229,7 +229,7 @@ def create_multiple_backlinks_rest(
 
     try:
         # PBN 사이트 목록 조회
-        pbn_sites = supabase_client.get_available_pbn_sites(limit=quantity)
+        pbn_sites = supabase_client.get_active_pbn_sites(limit=quantity)
         logger.info(f"사용 가능한 PBN 사이트 {len(pbn_sites)}개 조회")
 
         if not pbn_sites:
