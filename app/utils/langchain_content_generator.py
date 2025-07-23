@@ -69,16 +69,29 @@ class ContentGenerator:
 ## 콘텐츠 작성 가이드라인:
 1. **자연스러운 키워드 사용**: 억지로 넣지 말고 자연스럽게 포함
 2. **독자 관점**: 독자에게 실질적인 도움이 되는 정보 제공
-3. **구조화**: 명확한 소제목과 단락 구조
+3. **구조화**: 명확한 소제목과 단락 구조로 가독성 향상
 4. **한글 사용**: 전문 용어도 한글로 설명하거나 병기
-5. **길이**: 800-1200단어 내외의 충실한 내용
+5. **길이**: 600-800단어 내외의 충실한 내용
 
 ## 콘텐츠 구성:
-1. **도입부**: 독자의 관심을 끄는 도입 (200-300단어)
-2. **본문**: 주제에 대한 상세 설명 (600-900단어)
+1. **도입부**: 독자의 관심을 끄는 도입 (150-200단어)
+   - 주제의 중요성과 현재 트렌드 언급
+   - 독자가 얻을 수 있는 가치 제시
+   
+2. **본문**: 주제에 대한 상세 설명 (450-600단어)
+   - 명확한 소제목 사용 (## 또는 ### 활용)
+   - 구체적인 정보와 실용적인 팁 제공
+   - 단락별로 명확한 주제 분리
+
 3. **마무리는 하지 마세요** - 이후에 추가 콘텐츠가 더해질 예정
 
-마크다운 형식으로 작성하되, 자연스럽고 읽기 쉬운 한글 블로그 포스트를 작성해주세요.
+## 형식 요구사항:
+- 각 단락은 명확하게 구분 (빈 줄로 분리)
+- 소제목은 ## 또는 ### 사용
+- 리스트는 명확한 형태로 작성
+- 중복된 결론이나 마무리 멘트 금지
+
+자연스럽고 읽기 쉬운 한글 블로그 포스트를 작성해주세요.
 """,
         )
 
@@ -115,16 +128,22 @@ class ContentGenerator:
 키워드: {keyword}
 제목: {title}
 
-## 전체 콘텐츠:
+## 전체 콘텐츠 요약:
 {full_content}
 
 ## 결론 작성 지침:
-1. **핵심 요약**: 주요 내용을 간결하게 정리
-2. **실행 가능한 다음 단계**: 독자가 취할 수 있는 구체적 행동
+1. **핵심 요약**: 주요 내용을 간결하게 정리 (중복 없이)
+2. **실행 가능한 다음 단계**: 독자가 취할 수 있는 구체적 행동 제시
 3. **긍정적 마무리**: 독자에게 동기부여가 되는 메시지
-4. **길이**: 150-250단어 내외
+4. **길이**: 150-200단어 내외의 간결한 마무리
 
-자연스럽고 완성도 높은 결론을 마크다운 형식으로 작성해주세요.
+## 주의사항:
+- 기존 콘텐츠에서 이미 언급된 내용 반복 금지
+- "마지막으로", "결론적으로" 등의 뻔한 표현 자제
+- 자연스럽고 유용한 마무리로 완성
+
+## 결론
+제목 없이 바로 결론 내용만 작성해주세요.
 """,
         )
 
@@ -149,79 +168,60 @@ class ContentGenerator:
 
     def _insert_anchor_text(self, content: str, target_url: str, keyword: str) -> str:
         """
-        콘텐츠에 자연스럽게 앵커텍스트 삽입 (하드코딩 방식)
+        콘텐츠에 자연스럽게 앵커 텍스트 삽입 (다중 키워드 지원)
 
         Args:
             content: 원본 콘텐츠
-            target_url: 백링크 URL
-            keyword: 앵커텍스트로 사용할 키워드
+            target_url: 링크할 URL
+            keyword: 앵커 텍스트로 사용할 키워드
 
         Returns:
-            앵커텍스트가 삽입된 콘텐츠
+            앵커 텍스트가 삽입된 콘텐츠
         """
-        # 키워드가 처음 등장하는 위치를 찾아서 링크로 변환
-        keyword_pattern = re.escape(keyword)
-
-        # 이미 링크가 있는 키워드는 건드리지 않음
-        if f"[{keyword}]" in content or f"href" in content:
+        # 이미 링크가 있는지 확인
+        if f"[{keyword}]" in content or target_url in content:
             return content
 
-        # 첫 번째 키워드 등장 위치에 링크 삽입
-        def replace_first_keyword(match):
-            return f"[{match.group()}]({target_url})"
+        # 키워드의 다양한 형태 패턴 생성
+        keyword_variations = [
+            keyword,  # 기본 키워드
+            f"{keyword}는",  # 조사 포함
+            f"{keyword}을",
+            f"{keyword}를",
+            f"{keyword}와",
+            f"{keyword}의",
+            f"{keyword}에",
+            f"{keyword}으로",
+        ]
 
-        # 첫 번째 키워드만 교체
-        modified_content = re.sub(
-            keyword_pattern, replace_first_keyword, content, count=1  # 첫 번째만 교체
-        )
+        # 첫 번째로 찾은 키워드에만 링크 적용
+        for variation in keyword_variations:
+            pattern = re.escape(variation)
+            if re.search(pattern, content):
+                # 링크 삽입 (첫 번째 발견만)
+                modified_content = re.sub(
+                    pattern, f"[{variation}]({target_url})", content, count=1
+                )
+                return modified_content
 
-        return modified_content
-
-    def _markdown_to_html(self, markdown_text: str) -> str:
-        """
-        마크다운을 HTML로 변환 (간단한 변환)
-
-        Args:
-            markdown_text: 마크다운 텍스트
-
-        Returns:
-            HTML 텍스트
-        """
-        html = markdown_text
-
-        # 제목 변환
-        html = re.sub(r"^# (.+)$", r"<h1>\1</h1>", html, flags=re.MULTILINE)
-        html = re.sub(r"^## (.+)$", r"<h2>\1</h2>", html, flags=re.MULTILINE)
-        html = re.sub(r"^### (.+)$", r"<h3>\1</h3>", html, flags=re.MULTILINE)
-
-        # 링크 변환
-        html = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', html)
-
-        # 볼드 변환
-        html = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", html)
-
-        # 이탤릭 변환
-        html = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", html)
-
-        # 단락 변환 (연속된 줄바꿈을 단락으로)
-        paragraphs = html.split("\n\n")
-        html_paragraphs = []
-
-        for p in paragraphs:
-            p = p.strip()
-            if (
-                p
-                and not p.startswith("<h")
-                and not p.startswith("<ul")
-                and not p.startswith("<ol")
-            ):
-                # 단순 줄바꿈을 <br>로 변환
-                p = p.replace("\n", "<br>")
-                html_paragraphs.append(f"<p>{p}</p>")
+        # 키워드를 찾지 못한 경우 기본 키워드로 첫 번째 단락에 추가
+        paragraphs = content.split("\n\n")
+        if len(paragraphs) > 1:
+            # 첫 번째 단락 끝에 자연스럽게 키워드 추가
+            first_paragraph = paragraphs[0]
+            if not first_paragraph.strip().endswith("."):
+                first_paragraph += (
+                    f". [{keyword}]({target_url})에 대해 더 자세히 알아보겠습니다."
+                )
             else:
-                html_paragraphs.append(p)
+                first_paragraph += (
+                    f" [{keyword}]({target_url})에 대한 내용을 살펴보겠습니다."
+                )
 
-        return "\n\n".join(html_paragraphs)
+            paragraphs[0] = first_paragraph
+            return "\n\n".join(paragraphs)
+
+        return content
 
     def generate_content(
         self,
@@ -362,6 +362,79 @@ class ContentGenerator:
                 "has_anchor_text": target_url is not None,
                 "error": str(e),
             }
+
+    def _markdown_to_html(self, markdown_content: str) -> str:
+        """
+        마크다운을 HTML로 변환 (워드프레스 호환)
+
+        Args:
+            markdown_content: 마크다운 텍스트
+
+        Returns:
+            HTML 형태의 콘텐츠
+        """
+        # HTML 변환 로직
+        html_content = markdown_content
+
+        # 제목 변환
+        html_content = re.sub(
+            r"^# (.+)$", r"<h1>\1</h1>", html_content, flags=re.MULTILINE
+        )
+        html_content = re.sub(
+            r"^## (.+)$", r"<h2>\1</h2>", html_content, flags=re.MULTILINE
+        )
+        html_content = re.sub(
+            r"^### (.+)$", r"<h3>\1</h3>", html_content, flags=re.MULTILINE
+        )
+        html_content = re.sub(
+            r"^#### (.+)$", r"<h4>\1</h4>", html_content, flags=re.MULTILINE
+        )
+
+        # 단락 구분 개선 (빈 줄을 기준으로 단락 나누기)
+        paragraphs = html_content.split("\n\n")
+        formatted_paragraphs = []
+
+        for paragraph in paragraphs:
+            paragraph = paragraph.strip()
+            if not paragraph:
+                continue
+
+            # 제목이 아닌 일반 텍스트는 <p> 태그로 감싸기
+            if not re.match(r"<h[1-6]>", paragraph):
+                # 리스트 항목 처리
+                if paragraph.startswith("–") or paragraph.startswith("-"):
+                    # 리스트를 <ul> 태그로 변환
+                    list_items = paragraph.split("\n")
+                    ul_content = "<ul>\n"
+                    for item in list_items:
+                        if item.strip().startswith("–") or item.strip().startswith("-"):
+                            cleaned_item = re.sub(r"^[–-]\s*", "", item.strip())
+                            ul_content += f"<li>{cleaned_item}</li>\n"
+                    ul_content += "</ul>"
+                    formatted_paragraphs.append(ul_content)
+                else:
+                    # 일반 단락
+                    lines = paragraph.split("\n")
+                    clean_lines = [line.strip() for line in lines if line.strip()]
+                    if clean_lines:
+                        formatted_paragraphs.append(
+                            f'<p>{"<br>".join(clean_lines)}</p>'
+                        )
+            else:
+                formatted_paragraphs.append(paragraph)
+
+        # 최종 HTML 조합
+        html_result = "\n\n".join(formatted_paragraphs)
+
+        # 강조 텍스트 처리
+        html_result = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html_result)
+        html_result = re.sub(r"\*(.+?)\*", r"<em>\1</em>", html_result)
+
+        # 중복 단락 및 불필요한 마크다운 기호 제거
+        html_result = re.sub(r"#{1,6}\s*", "", html_result)  # 남은 ### 기호 제거
+        html_result = re.sub(r"—+", "", html_result)  # —— 기호 제거
+
+        return html_result
 
 
 def test_content_generation():

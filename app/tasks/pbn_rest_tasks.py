@@ -157,6 +157,19 @@ def create_pbn_backlink_rest(
                         logger.info(f"LangChain 콘텐츠 생성 성공")
                         title = content_result["title"]
                         html_content = content_result["html_content"]
+                        logger.info(f"HTML 콘텐츠 길이: {len(html_content)} 문자")
+
+                        # 추가 HTML 정리 (워드프레스 호환성)
+                        import re
+
+                        # 불필요한 마크다운 기호 제거
+                        html_content = re.sub(r"#{1,6}\s*", "", html_content)
+                        html_content = re.sub(r"—+", "", html_content)
+                        html_content = re.sub(
+                            r"\n{3,}", "\n\n", html_content
+                        )  # 과도한 줄바꿈 정리
+                        logger.info(f"HTML 콘텐츠 정리 완료")
+
                         featured_image_path = content_result.get("featured_image_path")
 
                     else:
@@ -218,7 +231,7 @@ def create_pbn_backlink_rest(
 
                     post_result = uploader.upload_complete_post(
                         title=title,
-                        content=html_content,
+                        content=html_content,  # 이미 HTML로 변환된 콘텐츠
                         image_path=featured_image_path,
                         keyword=keyword,
                         status="publish",
