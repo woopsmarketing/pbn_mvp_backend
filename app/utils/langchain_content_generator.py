@@ -1,31 +1,23 @@
 """
-최신 LangChain 기법 기반 한글 블로그 콘텐츠 생성 모듈
-- LangGraph StateGraph 활용한 상태 기반 워크플로우
-- MemorySaver 기반 영구 메모리 관리
-- trim_messages를 통한 스마트한 컨텍스트 관리
-- MessagesState와 자연스러운 콘텐츠 연결
+단순하고 효과적인 한글 블로그 콘텐츠 생성 모듈
+- 자연스러운 콘텐츠 연결에 집중
+- ConversationSummaryMemory로 컨텍스트 관리
+- 마지막 섹션 기반 매끄러운 확장
 - 마크다운을 HTML로 자동 변환
 - 자연스러운 앵커텍스트 삽입 지원
 - SEO 친화적이면서 가독성 높은 콘텐츠 생성
-- v2.0 - 최신 LangChain/LangGraph 기법 적용 (2025.07.15)
+- v2.1 - PBN 특성에 맞게 단순화 및 최적화 (2025.07.15)
 """
 
 import os
 import re
 import logging
-import uuid
-from typing import Optional, Dict, Any, List
-from langchain_core.messages import (
-    SystemMessage,
-    HumanMessage,
-    AIMessage,
-    trim_messages,
-)
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from typing import Optional, Dict, Any
+from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
-from langgraph.graph import StateGraph, START, END, MessagesState
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import ToolNode
+from langchain_core.output_parsers import StrOutputParser
+from langchain.memory import ConversationSummaryMemory
+from langchain_core.messages import HumanMessage, AIMessage
 from dotenv import load_dotenv
 
 # 환경변수 로드
@@ -35,22 +27,8 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-class ContentGeneratorState(MessagesState):
-    """확장된 상태 클래스 - MessagesState 기반"""
-
-    keyword: str = ""
-    title: str = ""
-    target_url: Optional[str] = None
-    target_word_count: int = 1500
-    current_word_count: int = 0
-    expansions_used: int = 0
-    content_sections: List[str] = []
-    generation_phase: str = "initial"  # initial, expansion, conclusion
-    expansion_focus: str = ""
-
-
-class SmartContentGenerator:
-    """최신 LangChain/LangGraph 기반 스마트 콘텐츠 생성기"""
+class ContentGenerator:
+    """단순하고 효과적인 한글 블로그 콘텐츠 생성기"""
 
     def __init__(self, openai_api_key: Optional[str] = None):
         """
@@ -65,7 +43,7 @@ class SmartContentGenerator:
                 "OpenAI API 키가 필요합니다. OPENAI_API_KEY 환경변수를 설정하거나 매개변수로 전달하세요."
             )
 
-        # 메인 콘텐츠 생성용 모델
+        # 콘텐츠 생성용 모델 (GPT-4.1-nano - 최신 모델, 비용 효율적)
         self.content_llm = ChatOpenAI(
             model="gpt-4.1-nano",
             temperature=0.8,
@@ -73,7 +51,7 @@ class SmartContentGenerator:
             max_tokens=2048,
         )
 
-        # 확장 콘텐츠 생성용 모델
+        # 확장 콘텐츠 생성용 모델 (일관성 유지)
         self.expansion_llm = ChatOpenAI(
             model="gpt-4.1-nano",
             temperature=0.7,
@@ -81,25 +59,29 @@ class SmartContentGenerator:
             max_tokens=1536,
         )
 
-        # 메모리 관리
-        self.memory = MemorySaver()
+        # 요약용 모델 (ConversationSummaryMemory에서 사용)
+        self.summary_llm = ChatOpenAI(
+            model="gpt-4.1-nano",
+            temperature=0.3,
+            openai_api_key=api_key,
+            max_tokens=512,
+        )
 
-        # 워크플로우 구성
         self._setup_prompts()
-        self._build_workflow()
 
     def _setup_prompts(self):
         """프롬프트 템플릿 설정"""
 
         # 초기 콘텐츠 생성 프롬프트
-        self.initial_prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessage(
-                    content="""
+        self.initial_content_prompt = PromptTemplate(
+            input_variables=["keyword", "title"],
+            template="""
 당신은 전문적인 한글 블로그 콘텐츠 작성자입니다.
-현재 연도: 2025년
-
 주어진 키워드와 제목을 바탕으로 SEO 친화적이고 가독성 높은 블로그 포스트를 작성해주세요.
+
+현재 연도: 2025년
+키워드: {keyword}
+제목: {title}
 
 ## 콘텐츠 작성 가이드라인:
 1. **자연스러운 키워드 사용**: 억지로 넣지 말고 자연스럽게 포함
@@ -121,26 +103,43 @@ class SmartContentGenerator:
 
 3. **마무리는 하지 마세요** - 이후에 추가 콘텐츠가 더해질 예정
 
+## 형식 요구사항:
+- 각 단락은 명확하게 구분 (빈 줄로 분리)
+- 소제목은 ## 또는 ### 사용
+- 리스트는 명확한 형태로 작성
+- 중복된 결론이나 마무리 멘트 금지
+
 ## 주의사항:
 - 과거 연도(2024년, 2023년 등) 언급 금지
 - 2025년이 현재 연도임을 자연스럽게 반영
-- 각 단락은 명확하게 구분 (빈 줄로 분리)
-- 소제목은 ## 또는 ### 사용
-"""
-                ),
-                HumanMessage(
-                    content="키워드: {keyword}\n제목: {title}\n\n자연스럽고 읽기 쉬운 한글 블로그 포스트를 작성해주세요."
-                ),
-            ]
+- 최신 트렌드와 정보 우선 사용
+
+자연스럽고 읽기 쉬운 한글 블로그 포스트를 작성해주세요.
+""",
         )
 
-        # 스마트 확장 프롬프트
-        self.expansion_prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessage(
-                    content="""
+        # 스마트 확장 콘텐츠 생성 프롬프트
+        self.smart_expansion_prompt = PromptTemplate(
+            input_variables=[
+                "keyword",
+                "title",
+                "content_summary",
+                "expansion_focus",
+                "last_section",
+            ],
+            template="""
 기존 블로그 콘텐츠를 자연스럽게 확장하여 더 풍부하고 유용한 정보를 추가해주세요.
+
 현재 연도: 2025년
+키워드: {keyword}
+제목: {title}
+확장 포커스: {expansion_focus}
+
+## 지금까지의 콘텐츠 요약:
+{content_summary}
+
+## 마지막 섹션 내용 (연결 참고용):
+{last_section}
 
 ## 확장 지침:
 1. **자연스러운 연결**: 마지막 섹션에서 자연스럽게 이어지는 내용 작성
@@ -151,33 +150,37 @@ class SmartContentGenerator:
 6. **최신성**: 2025년 기준의 최신 정보와 트렌드 반영
 
 ## 확장 콘텐츠 구성:
-1. **연결 문구**: 이전 내용과 자연스럽게 연결되는 1-2문장
+1. **연결 문구**: 이전 내용과 자연스럽게 연결되는 1-2문장 (선택사항)
 2. **새로운 소제목**: 확장 내용에 맞는 적절한 소제목 (### 사용)
 3. **상세 내용**: 구체적이고 유용한 정보 제공
 
 ## 주의사항:
 - "추가로", "또한", "더불어" 등 자연스러운 연결어 사용
 - 인위적인 제목이나 구분선 사용 금지
+- "기존 콘텐츠에 추가" 같은 메타적 언급 금지
 - 과거 연도(2024년, 2023년 등) 언급 금지
 - 2025년 현재의 상황과 트렌드 우선 반영
 
+기존 콘텐츠에 자연스럽게 이어질 확장 내용을 작성해주세요.
 마무리는 하지 마세요.
-"""
-                ),
-                MessagesPlaceholder(variable_name="messages"),
-                HumanMessage(
-                    content="확장 포커스: {expansion_focus}\n\n기존 콘텐츠에 자연스럽게 이어질 확장 내용을 작성해주세요."
-                ),
-            ]
+""",
         )
 
-        # 통합 결론 프롬프트
-        self.conclusion_prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessage(
-                    content="""
+        # 통합 결론 생성 프롬프트
+        self.conclusion_prompt = PromptTemplate(
+            input_variables=["keyword", "title", "content_summary", "key_points"],
+            template="""
 블로그 포스트의 결론 부분을 작성해주세요.
+
 현재 연도: 2025년
+키워드: {keyword}
+제목: {title}
+
+## 전체 콘텐츠 요약:
+{content_summary}
+
+## 주요 포인트들:
+{key_points}
 
 ## 결론 작성 지침:
 1. **핵심 요약**: 주요 내용을 2-3문장으로 간결하게 정리
@@ -187,233 +190,64 @@ class SmartContentGenerator:
 5. **시의성**: 2025년 현재 상황에 맞는 조언과 전망
 
 ## 주의사항:
+- 기존 콘텐츠 반복 금지
 - "마지막으로", "결론적으로", "앞으로 더 많은" 등 뻔한 표현 사용 금지
 - 과도한 홍보성 문구나 긴 부제목 형태 금지
+- 단순하고 실용적인 마무리로 완성
 - 과거 연도(2024년, 2023년 등) 언급 금지
 - 2025년 현재의 관점에서 마무리
 
 ## 결론
 제목 없이 간결한 결론만 작성해주세요.
-"""
-                ),
-                MessagesPlaceholder(variable_name="messages"),
-                HumanMessage(
-                    content="전체 콘텐츠를 바탕으로 간결한 결론을 작성해주세요."
-                ),
-            ]
+""",
         )
 
-    def _build_workflow(self):
-        """LangGraph 워크플로우 구성"""
-
-        workflow = StateGraph(ContentGeneratorState)
-
-        # 노드 정의
-        workflow.add_node("initial_content", self._generate_initial_content)
-        workflow.add_node("expansion_content", self._generate_expansion_content)
-        workflow.add_node("conclusion_content", self._generate_conclusion_content)
-        workflow.add_node("finalize_content", self._finalize_content)
-
-        # 엣지 정의
-        workflow.add_edge(START, "initial_content")
-        workflow.add_edge("initial_content", "expansion_content")
-        workflow.add_conditional_edges(
-            "expansion_content",
-            self._should_continue_expansion,
-            {"continue": "expansion_content", "conclude": "conclusion_content"},
+        # 체인 생성
+        self.initial_chain = (
+            self.initial_content_prompt | self.content_llm | StrOutputParser()
         )
-        workflow.add_edge("conclusion_content", "finalize_content")
-        workflow.add_edge("finalize_content", END)
-
-        # 워크플로우 컴파일
-        self.app = workflow.compile(checkpointer=self.memory)
-
-    def _generate_initial_content(
-        self, state: ContentGeneratorState
-    ) -> ContentGeneratorState:
-        """초기 콘텐츠 생성"""
-        logger.info("1단계: 초기 콘텐츠 생성 중...")
-
-        try:
-            # 프롬프트 체인 실행
-            chain = self.initial_prompt | self.content_llm
-            response = chain.invoke(
-                {"keyword": state["keyword"], "title": state["title"]}
-            )
-
-            content = response.content
-            word_count = self._count_words(content)
-
-            logger.info(f"초기 콘텐츠 완료 ({word_count}단어)")
-
-            # 상태 업데이트
-            new_messages = list(state.get("messages", []))
-            new_messages.append(
-                HumanMessage(
-                    content=f"키워드: {state['keyword']}, 제목: {state['title']}"
-                )
-            )
-            new_messages.append(response)
-
-            return {
-                **state,
-                "messages": new_messages,
-                "content_sections": [content],
-                "current_word_count": word_count,
-                "generation_phase": "expansion",
-            }
-
-        except Exception as e:
-            logger.error(f"초기 콘텐츠 생성 오류: {e}")
-            raise
-
-    def _generate_expansion_content(
-        self, state: ContentGeneratorState
-    ) -> ContentGeneratorState:
-        """확장 콘텐츠 생성"""
-        expansions_used = state.get("expansions_used", 0)
-        logger.info(
-            f"2단계: 콘텐츠 확장 {expansions_used + 1}차 (현재 {state['current_word_count']}단어)"
+        self.expansion_chain = (
+            self.smart_expansion_prompt | self.expansion_llm | StrOutputParser()
+        )
+        self.conclusion_chain = (
+            self.conclusion_prompt | self.content_llm | StrOutputParser()
         )
 
-        # 확장 포커스 선택
-        expansion_focuses = [
-            "실제 사례와 구체적인 예시",
-            "단계별 실행 방법과 실용적인 팁",
-            "주의사항과 문제해결 방법",
-            "최신 트렌드와 전망",
-        ]
-        focus = expansion_focuses[expansions_used % len(expansion_focuses)]
+    def _create_memory(self) -> ConversationSummaryMemory:
+        """대화 요약 메모리 생성 (1회성 세션용)"""
+        return ConversationSummaryMemory(
+            llm=self.summary_llm,
+            return_messages=True,
+            max_token_limit=600,  # PBN 콘텐츠에 적합한 크기
+        )
 
-        try:
-            # 메시지 히스토리 트림 (최신 메모리 관리 기법)
-            trimmed_messages = trim_messages(
-                state["messages"],
-                token_counter=len,
-                max_tokens=8,  # 최대 8개 메시지 유지
-                strategy="last",
-                start_on="human",
-                include_system=True,
-                allow_partial=False,
-            )
+    def _extract_last_section(self, content: str) -> str:
+        """콘텐츠의 마지막 섹션 추출 (자연스러운 연결을 위해)"""
+        lines = content.strip().split("\n")
+        last_section_lines = []
 
-            # 확장 콘텐츠 생성
-            chain = self.expansion_prompt | self.expansion_llm
-            response = chain.invoke(
-                {"messages": trimmed_messages, "expansion_focus": focus}
-            )
+        # 마지막 200자 정도의 의미있는 내용 추출
+        content_length = 0
+        for line in reversed(lines):
+            if line.strip() and content_length < 200:
+                last_section_lines.insert(0, line)
+                content_length += len(line)
+            if content_length >= 200:
+                break
 
-            content = response.content
-            word_count = self._count_words(content)
+        return "\n".join(last_section_lines[-4:])  # 마지막 4줄 정도
 
-            # 상태 업데이트
-            new_messages = list(state["messages"])
-            new_messages.append(HumanMessage(content=f"확장 포커스: {focus}"))
-            new_messages.append(response)
+    def _extract_key_points(self, content: str) -> str:
+        """콘텐츠에서 주요 포인트 추출"""
+        # 소제목들 추출
+        headers = re.findall(r"^#{2,4}\s+(.+)$", content, re.MULTILINE)
+        if headers:
+            return "- " + "\n- ".join(headers[:5])  # 최대 5개 소제목
 
-            new_sections = list(state["content_sections"])
-            new_sections.append(content)
-
-            return {
-                **state,
-                "messages": new_messages,
-                "content_sections": new_sections,
-                "current_word_count": state["current_word_count"] + word_count,
-                "expansions_used": expansions_used + 1,
-                "expansion_focus": focus,
-            }
-
-        except Exception as e:
-            logger.error(f"확장 콘텐츠 생성 오류: {e}")
-            raise
-
-    def _generate_conclusion_content(
-        self, state: ContentGeneratorState
-    ) -> ContentGeneratorState:
-        """결론 콘텐츠 생성"""
-        logger.info("3단계: 통합 결론 생성 중...")
-
-        try:
-            # 메시지 히스토리 트림
-            trimmed_messages = trim_messages(
-                state["messages"],
-                token_counter=len,
-                max_tokens=6,
-                strategy="last",
-                start_on="human",
-                include_system=True,
-                allow_partial=False,
-            )
-
-            # 결론 생성
-            chain = self.conclusion_prompt | self.content_llm
-            response = chain.invoke({"messages": trimmed_messages})
-
-            content = response.content
-            word_count = self._count_words(content)
-
-            # 상태 업데이트
-            new_messages = list(state["messages"])
-            new_messages.append(HumanMessage(content="결론 생성 요청"))
-            new_messages.append(response)
-
-            new_sections = list(state["content_sections"])
-            new_sections.append(content)
-
-            return {
-                **state,
-                "messages": new_messages,
-                "content_sections": new_sections,
-                "current_word_count": state["current_word_count"] + word_count,
-                "generation_phase": "finalize",
-            }
-
-        except Exception as e:
-            logger.error(f"결론 생성 오류: {e}")
-            raise
-
-    def _finalize_content(self, state: ContentGeneratorState) -> ContentGeneratorState:
-        """최종 콘텐츠 조합 및 처리"""
-        logger.info("4단계: 최종 콘텐츠 조합 및 처리 중...")
-
-        try:
-            # 모든 섹션 조합
-            full_content = "\n\n".join(state["content_sections"])
-
-            # 앵커텍스트 삽입 (target_url이 있는 경우)
-            if state.get("target_url"):
-                full_content = self._insert_anchor_text(
-                    full_content, state["target_url"], state["keyword"]
-                )
-
-            # HTML 변환
-            html_content = self._markdown_to_html(full_content)
-
-            logger.info(
-                f"스마트 콘텐츠 생성 완료! 최종 단어 수: {state['current_word_count']}"
-            )
-
-            return {
-                **state,
-                "markdown_content": full_content,
-                "html_content": html_content,
-                "generation_phase": "completed",
-            }
-
-        except Exception as e:
-            logger.error(f"최종 처리 오류: {e}")
-            raise
-
-    def _should_continue_expansion(self, state: ContentGeneratorState) -> str:
-        """확장을 계속할지 결정"""
-        current_count = state.get("current_word_count", 0)
-        target_count = state.get("target_word_count", 1500)
-        expansions_used = state.get("expansions_used", 0)
-        max_expansions = 3
-
-        if current_count >= target_count or expansions_used >= max_expansions:
-            return "conclude"
-        return "continue"
+        # 소제목이 없으면 첫 문장들 추출
+        sentences = content.split(".")[:3]
+        clean_sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
+        return "- " + "\n- ".join(clean_sentences)
 
     def _count_words(self, text: str) -> int:
         """텍스트의 단어 수 계산 (한글 기준)"""
@@ -509,56 +343,137 @@ class SmartContentGenerator:
         title: str,
         target_url: Optional[str] = None,
         target_word_count: int = 1500,
+        max_expansions: int = 3,
     ) -> Dict[str, Any]:
         """
-        LangGraph 기반 스마트 콘텐츠 생성
+        단순하고 효과적인 콘텐츠 생성 (초기 + 자연스러운 확장 + 통합 결론)
 
         Args:
             keyword: 주요 키워드
             title: 블로그 제목
             target_url: 백링크 URL (있으면 앵커텍스트 삽입)
             target_word_count: 목표 단어 수
+            max_expansions: 최대 확장 횟수
 
         Returns:
             생성 결과 딕셔너리
         """
         try:
-            # 고유한 스레드 ID 생성 (세션 관리용)
-            thread_id = str(uuid.uuid4())
-            config = {"configurable": {"thread_id": thread_id}}
+            logger.info(f"콘텐츠 생성 시작: {title}")
 
-            # 초기 상태 설정
-            initial_state = {
-                "messages": [],
-                "keyword": keyword,
-                "title": title,
-                "target_url": target_url,
-                "target_word_count": target_word_count,
-                "current_word_count": 0,
-                "expansions_used": 0,
-                "content_sections": [],
-                "generation_phase": "initial",
-            }
+            # 1회성 메모리 초기화 (PBN 특성에 맞게)
+            memory = self._create_memory()
 
-            # LangGraph 실행
-            final_state = self.app.invoke(initial_state, config=config)
+            # 1단계: 초기 콘텐츠 생성
+            logger.info("1단계: 초기 콘텐츠 생성 중...")
+            initial_content = self.initial_chain.invoke(
+                {"keyword": keyword, "title": title}
+            )
+
+            current_word_count = self._count_words(initial_content)
+            logger.info(f"초기 콘텐츠 완료 ({current_word_count}단어)")
+
+            # 메모리에 초기 콘텐츠 저장
+            memory.save_context(
+                {
+                    "input": f"키워드 '{keyword}'와 제목 '{title}'로 블로그 콘텐츠를 작성해주세요."
+                },
+                {"output": initial_content},
+            )
+
+            full_content = initial_content
+            expansions_used = 0
+
+            # 2단계: 스마트한 콘텐츠 확장
+            expansion_focuses = [
+                "실제 사례와 구체적인 예시",
+                "단계별 실행 방법과 실용적인 팁",
+                "주의사항과 문제해결 방법",
+                "최신 트렌드와 전망",
+            ]
+
+            while (
+                current_word_count < target_word_count
+                and expansions_used < max_expansions
+            ):
+                logger.info(
+                    f"2단계: 스마트 콘텐츠 확장 {expansions_used + 1}차 (현재 {current_word_count}단어)"
+                )
+
+                # 메모리에서 요약 가져오기
+                content_summary = memory.buffer
+
+                # 마지막 섹션 추출 (자연스러운 연결을 위해)
+                last_section = self._extract_last_section(full_content)
+
+                focus = expansion_focuses[expansions_used % len(expansion_focuses)]
+
+                # 스마트 확장 콘텐츠 생성
+                expanded_content = self.expansion_chain.invoke(
+                    {
+                        "keyword": keyword,
+                        "title": title,
+                        "content_summary": content_summary,
+                        "expansion_focus": focus,
+                        "last_section": last_section,
+                    }
+                )
+
+                # 자연스럽게 연결
+                full_content += "\n\n" + expanded_content
+                current_word_count = self._count_words(full_content)
+                expansions_used += 1
+
+                # 메모리 업데이트
+                memory.save_context(
+                    {"input": f"{focus}에 대한 추가 내용을 작성해주세요."},
+                    {"output": expanded_content},
+                )
+
+            # 3단계: 통합 결론 생성
+            logger.info("3단계: 통합 결론 생성 중...")
+
+            # 전체 콘텐츠 요약과 주요 포인트 추출
+            final_summary = memory.buffer
+            key_points = self._extract_key_points(full_content)
+
+            conclusion = self.conclusion_chain.invoke(
+                {
+                    "keyword": keyword,
+                    "title": title,
+                    "content_summary": final_summary,
+                    "key_points": key_points,
+                }
+            )
+
+            full_content += "\n\n" + conclusion
+            final_word_count = self._count_words(full_content)
+
+            # 앵커텍스트 삽입 (target_url이 있는 경우)
+            if target_url:
+                full_content = self._insert_anchor_text(
+                    full_content, target_url, keyword
+                )
+
+            # HTML 변환
+            html_content = self._markdown_to_html(full_content)
+
+            logger.info(f"콘텐츠 생성 완료! 최종 단어 수: {final_word_count}")
 
             return {
                 "success": True,
                 "title": title,
                 "keyword": keyword,
-                "markdown_content": final_state.get("markdown_content", ""),
-                "html_content": final_state.get("html_content", ""),
-                "word_count": final_state.get("current_word_count", 0),
-                "expansions_used": final_state.get("expansions_used", 0),
+                "markdown_content": full_content,
+                "html_content": html_content,
+                "word_count": final_word_count,
+                "expansions_used": expansions_used,
                 "has_anchor_text": target_url is not None,
-                "thread_id": thread_id,
-                "generation_phase": final_state.get("generation_phase", "completed"),
+                "content_summary": final_summary,
             }
 
         except Exception as e:
-            logger.error(f"LangGraph 콘텐츠 생성 오류: {e}")
-
+            logger.error(f"콘텐츠 생성 오류: {e}")
             # 기본 콘텐츠 반환
             fallback_content = f"""# {title}
 
@@ -702,21 +617,17 @@ class SmartContentGenerator:
         return html_result
 
 
-# 기존 ContentGenerator와의 호환성을 위한 별칭
-ContentGenerator = SmartContentGenerator
-
-
-def test_smart_content_generation():
-    """최신 LangChain 기법 콘텐츠 생성 테스트"""
+def test_content_generation():
+    """콘텐츠 생성 테스트 함수"""
     try:
-        generator = SmartContentGenerator()
+        generator = ContentGenerator()
 
         # 테스트 데이터
         test_keyword = "블로그 마케팅"
         test_title = "초보자를 위한 블로그 마케팅 완벽 가이드"
         test_url = "https://example.com"
 
-        # LangGraph 기반 스마트 콘텐츠 생성
+        # 콘텐츠 생성
         result = generator.generate_content(
             keyword=test_keyword,
             title=test_title,
@@ -726,23 +637,22 @@ def test_smart_content_generation():
 
         # 결과 출력 (테스트용으로만 print 사용)
         if __name__ == "__main__":
-            print("=== LangGraph 스마트 생성 결과 ===")
+            print("=== 단순화된 생성 결과 ===")
             print(f"성공 여부: {result['success']}")
             print(f"제목: {result['title']}")
             print(f"키워드: {result['keyword']}")
             print(f"단어 수: {result['word_count']}")
             print(f"확장 횟수: {result['expansions_used']}")
-            print(f"스레드 ID: {result.get('thread_id', 'N/A')}")
             print("\n=== HTML 콘텐츠 (일부) ===")
             print(result["html_content"][:500] + "...")
 
-        logger.info(f"LangGraph 테스트 완료: {result['success']}")
+        logger.info(f"테스트 완료: {result['success']}")
         return result
 
     except Exception as e:
-        logger.error(f"LangGraph 테스트 오류: {e}")
+        logger.error(f"테스트 오류: {e}")
         return None
 
 
 if __name__ == "__main__":
-    test_smart_content_generation()
+    test_content_generation()
