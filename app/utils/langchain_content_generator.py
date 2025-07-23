@@ -1,18 +1,18 @@
 """
-단순하고 효과적인 한글 블로그 콘텐츠 생성 모듈
-- 자연스러운 콘텐츠 연결에 집중
-- ConversationSummaryMemory로 컨텍스트 관리
-- 중복 방지 및 논리적 흐름 보장
+자연스러운 한글 블로그 콘텐츠 생성 모듈
+- 프롬프트와 체인 구조만으로 자연스러운 흐름 보장
+- ConversationSummaryMemory로 스마트한 컨텍스트 관리
+- 하드코딩 없는 유연한 콘텐츠 생성
 - 마크다운을 HTML로 자동 변환
 - 자연스러운 앵커텍스트 삽입 지원
 - SEO 친화적이면서 가독성 높은 콘텐츠 생성
-- v2.2 - 중복 방지 및 자연스러운 흐름 개선 (2025.07.15)
+- v2.3 - 프롬프트 중심의 자연스러운 흐름 구현 (2025.07.15)
 """
 
 import os
 import re
 import logging
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class ContentGenerator:
-    """단순하고 효과적인 한글 블로그 콘텐츠 생성기"""
+    """프롬프트 중심의 자연스러운 한글 블로그 콘텐츠 생성기"""
 
     def __init__(self, openai_api_key: Optional[str] = None):
         """
@@ -70,138 +70,125 @@ class ContentGenerator:
         self._setup_prompts()
 
     def _setup_prompts(self):
-        """프롬프트 템플릿 설정"""
+        """자연스러운 흐름을 위한 프롬프트 템플릿 설정"""
 
-        # 초기 콘텐츠 생성 프롬프트
+        # 초기 콘텐츠 생성 프롬프트 (체계적이고 완결성 있는 구조)
         self.initial_content_prompt = PromptTemplate(
             input_variables=["keyword", "title"],
             template="""
 당신은 전문적인 한글 블로그 콘텐츠 작성자입니다.
-주어진 키워드와 제목을 바탕으로 SEO 친화적이고 가독성 높은 블로그 포스트를 작성해주세요.
+주어진 키워드와 제목을 바탕으로 SEO 친화적이고 가독성 높은 블로그 포스트의 **기초 부분**을 작성해주세요.
 
 현재 연도: 2025년
 키워드: {keyword}
 제목: {title}
 
-## 콘텐츠 작성 가이드라인:
-1. **자연스러운 키워드 사용**: 억지로 넣지 말고 자연스럽게 포함
-2. **독자 관점**: 독자에게 실질적인 도움이 되는 정보 제공
-3. **구조화**: 명확한 소제목과 단락 구조로 가독성 향상
-4. **한글 사용**: 전문 용어도 한글로 설명하거나 병기
-5. **길이**: 600-800단어 내외의 충실한 내용
-6. **시대적 맥락**: 현재가 2025년임을 고려한 최신 정보 반영
+## 작성 가이드라인:
+1. **완결성**: 이 자체로도 의미있는 콘텐츠가 되도록 작성
+2. **확장성**: 추후 더 깊은 내용이 자연스럽게 이어질 수 있는 구조
+3. **독자 중심**: 독자가 궁금해할 기본적인 내용 우선 다루기
+4. **자연스러움**: 키워드를 억지로 넣지 말고 맥락에 맞게 사용
+5. **구체성**: 추상적 설명보다 구체적이고 실용적인 정보 제공
 
-## 콘텐츠 구성:
-1. **도입부**: 독자의 관심을 끄는 도입 (150-200단어)
-   - 주제의 중요성과 현재 트렌드 언급 (2025년 기준)
-   - 독자가 얻을 수 있는 가치 제시
-   
-2. **본문**: 주제에 대한 상세 설명 (450-600단어)
-   - 명확한 소제목 사용 (## 또는 ### 활용)
-   - 구체적인 정보와 실용적인 팁 제공
-   - 단락별로 명확한 주제 분리
+## 콘텐츠 구성 (600-800단어):
+1. **도입부 (150-200단어)**:
+   - 독자의 관심을 끄는 현실적 상황 제시
+   - 주제의 중요성과 2025년 현재 상황 언급
+   - 이 글에서 얻을 수 있는 구체적 가치 제시
 
-3. **마무리는 하지 마세요** - 이후에 추가 콘텐츠가 더해질 예정
+2. **핵심 개념 설명 (200-300단어)**:
+   - 주제의 기본 개념과 정의
+   - 왜 중요한지에 대한 명확한 이유
+   - 현재 트렌드와 변화하는 상황
 
-## 형식 요구사항:
-- 각 단락은 명확하게 구분 (빈 줄로 분리)
-- 소제목은 ## 또는 ### 사용
-- 리스트는 명확한 형태로 작성
-- 중복된 결론이나 마무리 멘트 금지
+3. **기본 접근법 (250-300단어)**:
+   - 초보자도 이해할 수 있는 기본 방법
+   - 실제로 적용 가능한 첫 번째 단계들
+   - 주의해야 할 기본적인 사항들
 
-## 주의사항:
-- 과거 연도(2024년, 2023년 등) 언급 금지
-- 2025년이 현재 연도임을 자연스럽게 반영
-- 최신 트렌드와 정보 우선 사용
+## 중요한 원칙:
+- 각 단락은 논리적으로 연결되어야 함
+- 소제목은 ## 또는 ### 사용하여 명확히 구분
+- 마무리 멘트나 "다음에는..." 같은 예고 없이 자연스럽게 끝내기
+- 2025년 현재 시점에서 최신 정보 반영
 
-자연스럽고 읽기 쉬운 한글 블로그 포스트를 작성해주세요.
+당신만의 전문성을 바탕으로 독자에게 진짜 도움이 되는 내용을 작성해주세요.
 """,
         )
 
-        # 개선된 확장 콘텐츠 생성 프롬프트
+        # 자연스러운 확장 콘텐츠 생성 프롬프트
         self.smart_expansion_prompt = PromptTemplate(
             input_variables=[
                 "keyword",
                 "title",
                 "content_summary",
-                "expansion_focus",
-                "last_section",
-                "used_topics",
+                "expansion_direction",
+                "last_context",
             ],
             template="""
-기존 블로그 콘텐츠를 자연스럽게 확장하여 새로운 관점의 유용한 정보를 추가해주세요.
+기존 블로그 콘텐츠를 자연스럽게 확장하여 더 깊이 있는 정보를 제공해주세요.
 
-현재 연도: 2025년
 키워드: {keyword}
 제목: {title}
-확장 포커스: {expansion_focus}
+확장 방향: {expansion_direction}
 
-## 지금까지의 콘텐츠 요약:
+## 현재까지의 내용 요약:
 {content_summary}
 
-## 마지막 섹션 내용 (연결 참고용):
-{last_section}
+## 바로 앞 문맥 (자연스러운 연결 참고용):
+{last_context}
 
-## 이미 다룬 주제들 (중복 금지):
-{used_topics}
+## 확장 원칙:
+1. **자연스러운 연결**: 앞의 내용에서 자연스럽게 이어지는 더 깊은 내용
+2. **새로운 가치**: 이미 다룬 내용과 겹치지 않는 새로운 관점이나 정보
+3. **논리적 발전**: 기본에서 심화로, 이론에서 실제로 자연스럽게 진행
+4. **독자 여정**: 독자가 자연스럽게 다음 궁금해할 내용 제공
+5. **실용성**: 독자가 바로 활용할 수 있는 구체적 방법이나 예시
 
-## 확장 지침:
-1. **새로운 관점**: 이미 다룬 주제와 중복되지 않는 새로운 시각 제시
-2. **자연스러운 연결**: 마지막 섹션의 맥락을 이어받되, 새로운 정보 제공
-3. **구체성**: 추상적 설명보다 실용적이고 구체적인 내용 우선
-4. **실행 가능성**: 독자가 바로 적용할 수 있는 방법론 제시
-5. **길이**: 300-500단어 내외로 확장
-6. **최신성**: 2025년 기준의 최신 정보와 트렌드 반영
+## 확장 내용 구성 (300-500단어):
+1. **새로운 소제목**: 확장 방향에 맞는 명확한 소제목 (### 사용)
+2. **심화 내용**: 기존 내용을 바탕으로 한 더 깊이 있는 정보
+3. **실제 적용**: 구체적인 방법, 예시, 또는 사례
 
-## 확장 콘텐츠 구성:
-1. **새로운 소제목**: 확장 내용에 맞는 명확한 소제목 (### 사용)
-2. **차별화된 내용**: 기존 내용과 겹치지 않는 새로운 정보
-3. **실제 사례**: 구체적인 예시나 케이스 스터디 (가능하면)
+## 절대 금지사항:
+- "앞서 언급한 바와 같이", "추가로", "또한" 등 인위적 연결어 시작
+- 이미 설명한 내용의 단순 반복이나 재설명
+- 갑작스러운 주제 변경이나 맥락 없는 내용 추가
+- 결론이나 마무리 형태의 내용 (아직 더 이어질 예정)
 
-## 엄격한 금지사항:
-- 이미 언급된 주제나 예시 재사용 금지
-- "또한", "추가로", "더불어" 등 뻔한 연결어 남용 금지
-- "기존 콘텐츠에 추가" 같은 메타적 언급 금지
-- 동일한 키워드나 표현의 과도한 반복 금지
-- 과거 연도(2024년, 2023년 등) 언급 금지
-
-## 요구사항:
-기존 콘텐츠와 차별화된 새로운 관점의 확장 내용만 작성하세요.
-마무리는 하지 마세요.
+기존 내용에서 자연스럽게 발전되는 다음 단계의 심화 내용을 작성해주세요.
+독자가 "아, 그럼 이것도 궁금한데?"라고 생각할 만한 내용으로 이어가세요.
 """,
         )
 
-        # 간결한 결론 생성 프롬프트
+        # 자연스러운 결론 생성 프롬프트
         self.conclusion_prompt = PromptTemplate(
-            input_variables=["keyword", "title", "content_summary", "key_points"],
+            input_variables=["keyword", "title", "content_summary", "main_takeaways"],
             template="""
-블로그 포스트의 간결하고 실용적인 결론을 작성해주세요.
+블로그 포스트의 자연스럽고 완결성 있는 결론을 작성해주세요.
 
-현재 연도: 2025년
 키워드: {keyword}
 제목: {title}
 
-## 전체 콘텐츠 요약:
+## 전체 내용 요약:
 {content_summary}
 
-## 주요 포인트들:
-{key_points}
+## 주요 핵심 내용들:
+{main_takeaways}
 
-## 결론 작성 지침:
-1. **핵심 요약**: 주요 내용을 2-3문장으로 간결하게 정리
-2. **실행 가능한 제안**: 독자가 당장 시도할 수 있는 구체적 행동 1-2가지
-3. **자연스러운 마무리**: 과장되지 않은 현실적인 메시지
-4. **길이**: 80-120단어 내외의 깔끔한 마무리
-5. **시의성**: 2025년 현재 상황에 맞는 조언
+## 결론 작성 가이드:
+1. **핵심 정리**: 가장 중요한 메시지 2-3가지를 간결하게 정리
+2. **실행 유도**: 독자가 지금 당장 할 수 있는 구체적 첫 번째 행동 제시
+3. **현실적 마무리**: 과장 없는 솔직하고 실용적인 조언
+4. **길이**: 80-120단어의 깔끔한 마무리
 
 ## 금지사항:
-- 기존 콘텐츠 내용 반복 금지
-- "마지막으로", "결론적으로" 등 뻔한 표현 금지
-- 과도한 홍보성 문구나 긴 설명 금지
-- 새로운 정보 추가 금지 (결론에만 집중)
+- "마지막으로", "결론적으로", "정리하면" 등 뻔한 시작
+- 새로운 정보나 개념 추가 금지
+- 과도한 격려나 홍보성 메시지 금지
+- 기존 내용의 단순 나열이나 반복
 
-## 결론
-제목 없이 간결한 결론만 작성해주세요.
+독자가 "이 글을 읽길 잘했다"고 느낄 수 있는 실용적이고 자연스러운 마무리를 해주세요.
 """,
         )
 
@@ -217,75 +204,47 @@ class ContentGenerator:
         )
 
     def _create_memory(self) -> ConversationSummaryMemory:
-        """대화 요약 메모리 생성 (1회성 세션용)"""
+        """대화 요약 메모리 생성 (컨텍스트 관리용)"""
         return ConversationSummaryMemory(
             llm=self.summary_llm,
             return_messages=True,
-            max_token_limit=500,  # 더 간결한 요약으로 중복 방지
+            max_token_limit=400,  # 핵심만 요약하여 효율성 향상
         )
 
-    def _extract_last_section(self, content: str) -> str:
-        """콘텐츠의 마지막 섹션 추출 (자연스러운 연결을 위해)"""
+    def _extract_last_context(self, content: str) -> str:
+        """마지막 문맥 추출 (자연스러운 연결을 위해)"""
         lines = content.strip().split("\n")
-        last_section_lines = []
+        context_lines = []
 
-        # 마지막 150자 정도의 의미있는 내용 추출 (더 간결하게)
-        content_length = 0
+        # 마지막 100자 정도의 문맥 추출
+        char_count = 0
         for line in reversed(lines):
-            if line.strip() and content_length < 150:
-                last_section_lines.insert(0, line)
-                content_length += len(line)
-            if content_length >= 150:
+            if line.strip() and char_count < 100:
+                context_lines.insert(0, line.strip())
+                char_count += len(line)
+            if char_count >= 100:
                 break
 
-        return "\n".join(last_section_lines[-3:])  # 마지막 3줄 정도
+        return " ".join(context_lines[-2:])  # 마지막 2줄 정도
 
-    def _extract_used_topics(self, content: str) -> str:
-        """이미 사용된 주제들 추출 (중복 방지용)"""
-        # 소제목들 추출
+    def _extract_main_takeaways(self, content: str) -> str:
+        """주요 핵심 내용 추출 (결론 작성용)"""
+        # 소제목들을 기반으로 핵심 내용 추출
         headers = re.findall(r"^#{2,4}\s+(.+)$", content, re.MULTILINE)
 
-        # 주요 키워드 추출 (AI, 빅데이터, 도구, 분석 등)
-        key_terms = []
-        common_terms = [
-            "AI",
-            "빅데이터",
-            "도구",
-            "분석",
-            "전문가",
-            "협업",
-            "내부 링크",
-            "자연스러운",
-            "신뢰도",
-        ]
-
-        for term in common_terms:
-            if term in content:
-                key_terms.append(term)
-
-        used_list = []
         if headers:
-            used_list.extend(
-                [f"- {header}" for header in headers[:4]]
-            )  # 최대 4개 소제목
-        if key_terms:
-            used_list.extend(
-                [f"- {term} 관련 내용" for term in key_terms[:3]]
-            )  # 최대 3개 키워드
-
-        return "\n".join(used_list) if used_list else "- 아직 다룬 주제 없음"
-
-    def _extract_key_points(self, content: str) -> str:
-        """콘텐츠에서 주요 포인트 추출"""
-        # 소제목들 추출
-        headers = re.findall(r"^#{2,4}\s+(.+)$", content, re.MULTILINE)
-        if headers:
-            return "- " + "\n- ".join(headers[:4])  # 최대 4개 소제목
-
-        # 소제목이 없으면 첫 문장들 추출
-        sentences = content.split(".")[:3]
-        clean_sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
-        return "- " + "\n- ".join(clean_sentences)
+            # 소제목들을 기반으로 핵심 포인트 구성
+            takeaways = []
+            for i, header in enumerate(headers[:4]):  # 최대 4개
+                takeaways.append(f"{i+1}. {header}")
+            return "\n".join(takeaways)
+        else:
+            # 소제목이 없으면 첫 문장들로 대체
+            sentences = [s.strip() for s in content.split(".") if len(s.strip()) > 20]
+            main_points = []
+            for i, sentence in enumerate(sentences[:3]):  # 최대 3개
+                main_points.append(f"{i+1}. {sentence}")
+            return "\n".join(main_points)
 
     def _count_words(self, text: str) -> int:
         """텍스트의 단어 수 계산 (한글 기준)"""
@@ -380,11 +339,11 @@ class ContentGenerator:
         keyword: str,
         title: str,
         target_url: Optional[str] = None,
-        target_word_count: int = 1200,  # 더 현실적인 목표
-        max_expansions: int = 2,  # 확장 횟수 줄임
+        target_word_count: int = 1200,
+        max_expansions: int = 2,
     ) -> Dict[str, Any]:
         """
-        개선된 콘텐츠 생성 (중복 방지 + 자연스러운 흐름)
+        자연스러운 콘텐츠 생성 (프롬프트 중심 접근법)
 
         Args:
             keyword: 주요 키워드
@@ -397,24 +356,24 @@ class ContentGenerator:
             생성 결과 딕셔너리
         """
         try:
-            logger.info(f"개선된 콘텐츠 생성 시작: {title}")
+            logger.info(f"자연스러운 콘텐츠 생성 시작: {title}")
 
-            # 1회성 메모리 초기화 (PBN 특성에 맞게)
+            # 메모리 초기화 (컨텍스트 관리용)
             memory = self._create_memory()
 
-            # 1단계: 초기 콘텐츠 생성
-            logger.info("1단계: 초기 콘텐츠 생성 중...")
+            # 1단계: 체계적인 기초 콘텐츠 생성
+            logger.info("1단계: 기초 콘텐츠 생성 중...")
             initial_content = self.initial_chain.invoke(
                 {"keyword": keyword, "title": title}
             )
 
             current_word_count = self._count_words(initial_content)
-            logger.info(f"초기 콘텐츠 완료 ({current_word_count}단어)")
+            logger.info(f"기초 콘텐츠 완료 ({current_word_count}단어)")
 
             # 메모리에 초기 콘텐츠 저장
             memory.save_context(
                 {
-                    "input": f"키워드 '{keyword}'와 제목 '{title}'로 블로그 콘텐츠를 작성해주세요."
+                    "input": f"'{keyword}' 주제로 '{title}' 블로그 포스트의 기초 내용을 작성했습니다."
                 },
                 {"output": initial_content},
             )
@@ -422,12 +381,12 @@ class ContentGenerator:
             full_content = initial_content
             expansions_used = 0
 
-            # 2단계: 차별화된 콘텐츠 확장
-            expansion_focuses = [
-                "구체적인 실행 단계와 체크리스트",
-                "최신 도구와 기술 활용법",
-                "실제 성공 사례와 주의점",
-                "미래 트렌드와 대응 전략",
+            # 2단계: 자연스러운 심화 확장
+            expansion_directions = [
+                "실제 적용 방법과 구체적인 단계별 가이드",
+                "고급 기법과 전문가 수준의 노하우",
+                "실제 사례와 성공/실패 경험담",
+                "최신 동향과 미래 전망",
             ]
 
             while (
@@ -435,29 +394,28 @@ class ContentGenerator:
                 and expansions_used < max_expansions
             ):
                 logger.info(
-                    f"2단계: 차별화된 콘텐츠 확장 {expansions_used + 1}차 (현재 {current_word_count}단어)"
+                    f"2단계: 자연스러운 심화 확장 {expansions_used + 1}차 (현재 {current_word_count}단어)"
                 )
 
-                # 메모리에서 요약 가져오기
+                # 메모리에서 요약된 컨텍스트 가져오기
                 content_summary = memory.buffer
 
-                # 마지막 섹션 추출 (자연스러운 연결을 위해)
-                last_section = self._extract_last_section(full_content)
+                # 마지막 문맥 추출 (자연스러운 연결을 위해)
+                last_context = self._extract_last_context(full_content)
 
-                # 이미 사용된 주제들 추출 (중복 방지)
-                used_topics = self._extract_used_topics(full_content)
+                # 확장 방향 선택
+                direction = expansion_directions[
+                    expansions_used % len(expansion_directions)
+                ]
 
-                focus = expansion_focuses[expansions_used % len(expansion_focuses)]
-
-                # 차별화된 확장 콘텐츠 생성
+                # 자연스러운 심화 콘텐츠 생성
                 expanded_content = self.expansion_chain.invoke(
                     {
                         "keyword": keyword,
                         "title": title,
                         "content_summary": content_summary,
-                        "expansion_focus": focus,
-                        "last_section": last_section,
-                        "used_topics": used_topics,
+                        "expansion_direction": direction,
+                        "last_context": last_context,
                     }
                 )
 
@@ -466,25 +424,25 @@ class ContentGenerator:
                 current_word_count = self._count_words(full_content)
                 expansions_used += 1
 
-                # 메모리 업데이트
+                # 메모리 업데이트 (컨텍스트 누적)
                 memory.save_context(
-                    {"input": f"{focus}에 대한 새로운 관점의 내용을 작성해주세요."},
+                    {"input": f"{direction}에 대한 심화 내용을 추가했습니다."},
                     {"output": expanded_content},
                 )
 
-            # 3단계: 간결한 결론 생성
-            logger.info("3단계: 간결한 결론 생성 중...")
+            # 3단계: 자연스러운 결론 생성
+            logger.info("3단계: 자연스러운 결론 생성 중...")
 
-            # 전체 콘텐츠 요약과 주요 포인트 추출
+            # 전체 컨텍스트와 핵심 내용 추출
             final_summary = memory.buffer
-            key_points = self._extract_key_points(full_content)
+            main_takeaways = self._extract_main_takeaways(full_content)
 
             conclusion = self.conclusion_chain.invoke(
                 {
                     "keyword": keyword,
                     "title": title,
                     "content_summary": final_summary,
-                    "key_points": key_points,
+                    "main_takeaways": main_takeaways,
                 }
             )
 
@@ -500,7 +458,9 @@ class ContentGenerator:
             # HTML 변환
             html_content = self._markdown_to_html(full_content)
 
-            logger.info(f"개선된 콘텐츠 생성 완료! 최종 단어 수: {final_word_count}")
+            logger.info(
+                f"자연스러운 콘텐츠 생성 완료! 최종 단어 수: {final_word_count}"
+            )
 
             return {
                 "success": True,
@@ -660,7 +620,7 @@ class ContentGenerator:
 
 
 def test_content_generation():
-    """개선된 콘텐츠 생성 테스트 함수"""
+    """자연스러운 콘텐츠 생성 테스트 함수"""
     try:
         generator = ContentGenerator()
 
@@ -669,7 +629,7 @@ def test_content_generation():
         test_title = "초보자를 위한 블로그 마케팅 완벽 가이드"
         test_url = "https://example.com"
 
-        # 개선된 콘텐츠 생성
+        # 자연스러운 콘텐츠 생성
         result = generator.generate_content(
             keyword=test_keyword,
             title=test_title,
@@ -679,7 +639,7 @@ def test_content_generation():
 
         # 결과 출력 (테스트용으로만 print 사용)
         if __name__ == "__main__":
-            print("=== 중복 방지 개선 결과 ===")
+            print("=== 자연스러운 콘텐츠 생성 결과 ===")
             print(f"성공 여부: {result['success']}")
             print(f"제목: {result['title']}")
             print(f"키워드: {result['keyword']}")
@@ -688,7 +648,7 @@ def test_content_generation():
             print("\n=== HTML 콘텐츠 (일부) ===")
             print(result["html_content"][:500] + "...")
 
-        logger.info(f"개선된 테스트 완료: {result['success']}")
+        logger.info(f"자연스러운 테스트 완료: {result['success']}")
         return result
 
     except Exception as e:
