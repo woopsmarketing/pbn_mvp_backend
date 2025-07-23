@@ -373,20 +373,30 @@ async def sample_request_authenticated(
             logger.warning("활성 PBN 사이트 없음")
             raise HTTPException(status_code=503, detail="No active PBN sites available")
 
-        # 2. 현재 로그인 사용자 정보 추출
+        # 2. 현재 로그인 사용자 정보 추출 (verify.py 방식 적용)
         clerk_id = current_user.get("sub")
-        user_email = None
+        user_email = current_user.get("email")
 
-        # Clerk JWT에서 이메일 추출
-        if "email_addresses" in current_user and current_user["email_addresses"]:
-            user_email = current_user["email_addresses"][0].get("email_address")
-        elif "email" in current_user:
-            user_email = current_user["email"]
+        if not clerk_id:
+            logger.error("Clerk ID missing from token")
+            raise HTTPException(status_code=400, detail="Clerk ID가 토큰에 없습니다")
 
-        if not user_email or not clerk_id:
-            raise HTTPException(
-                status_code=400, detail="사용자 이메일 또는 ID를 찾을 수 없습니다"
-            )
+        # 이메일 정보 확보 (토큰에 없으면 Clerk API로 조회)
+        if not user_email:
+            try:
+                from app.core.clerk_api import get_clerk_user_email
+
+                user_email = get_clerk_user_email(clerk_id)
+                logger.info(f"Clerk API에서 이메일 조회 성공: {user_email}")
+            except Exception as e:
+                logger.error(f"Failed to get email from Clerk API: {e}")
+                raise HTTPException(
+                    status_code=400, detail="이메일 정보를 가져올 수 없습니다"
+                )
+
+        if not user_email:
+            logger.error(f"No email found for clerk_id: {clerk_id}")
+            raise HTTPException(status_code=400, detail="이메일이 필요합니다")
 
         logger.info(f"실제 사용자: {user_email} (clerk_id: {clerk_id})")
 
