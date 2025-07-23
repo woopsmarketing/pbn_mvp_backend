@@ -74,19 +74,28 @@ def create_pbn_backlink_rest(
                     logger.warning("사용 가능한 PBN 사이트가 없습니다")
                     break
 
-            used_sites.append(site)
-            logger.info(f"PBN 사이트 시도 {attempt + 1}/{max_pbn_attempts}: {site}")
+            # 도메인 정리 (https://, http://, 끝 / 제거)
+            clean_domain = (
+                site.replace("https://", "").replace("http://", "").rstrip("/")
+            )
+            used_sites.append(clean_domain)
+            logger.info(
+                f"PBN 사이트 시도 {attempt + 1}/{max_pbn_attempts}: {clean_domain}"
+            )
 
             # Supabase DB에서 해당 도메인의 PBN 자격정보 조회
-            site_record = supabase_client.get_pbn_site_by_domain(site)
+            site_record = supabase_client.get_pbn_site_by_domain(clean_domain)
             logger.debug(f"PBN 사이트 레코드: {site_record}")
 
             # 사이트 정보가 없으면 다음 사이트로
             if not site_record:
-                logger.warning(f"PBN 사이트 정보 없음: {site}, 다음 사이트 시도")
+                logger.warning(
+                    f"PBN 사이트 정보 없음: {clean_domain}, 다음 사이트 시도"
+                )
                 continue
 
             # PBN 사이트 정보가 있으면 포스팅 시도
+            site = clean_domain  # 이후 로직에서 사용할 변수명 통일
             wp_user = (
                 site_record.get("wp_admin_user")
                 or site_record.get("wp_admin_id")
@@ -142,8 +151,15 @@ def create_pbn_backlink_rest(
                     logger.info(f"워드프레스 포스팅 시작: {site}")
                     from app.utils.wordpress_uploader import WordPressUploader
 
+                    # URL 형식 정리 (https:// 접두사와 끝 / 제거)
+                    clean_site_url = (
+                        site.replace("https://", "").replace("http://", "").rstrip("/")
+                    )
+                    full_site_url = f"https://{clean_site_url}"
+
+                    logger.info(f"정리된 사이트 URL: {full_site_url}")
                     uploader = WordPressUploader(
-                        site_url=f"https://{site}",
+                        site_url=full_site_url,
                         username=wp_user,
                         password=wp_password,
                         app_password=wp_password,
