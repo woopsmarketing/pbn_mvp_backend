@@ -235,16 +235,22 @@ async def rest_test_request(request: PbnSampleRequest):
         if not user:
             raise HTTPException(status_code=500, detail="Failed to create/get user")
 
-        # 3. 주문 생성
+        # 3. 주문 생성 (테이블 스키마에 맞게 수정)
         order_data = {
             "id": str(uuid.uuid4()),
             "user_id": user["id"],
-            "service_type": "pbn_backlink",
+            "type": "free_pbn",  # orders 테이블의 실제 컬럼
             "status": "pending",
-            "target_url": request.target_url,
-            "keyword": request.keyword,
-            "quantity": 1,
-            "price": 0.0,
+            "amount": 0.0,
+            "payment_status": "paid",  # 무료이므로 바로 paid
+            "order_metadata": {
+                "target_url": request.target_url,
+                "keyword": request.keyword,
+                "service_type": "pbn_backlink",
+                "quantity": 1,
+                "request_type": "sample",
+                "pbn_count": 1,
+            },
             "created_at": datetime.now().isoformat(),
         }
 
