@@ -112,10 +112,15 @@ class ContentGenerator:
 1. **기존 내용과의 연결성**: 자연스럽게 이어지도록 작성
 2. **새로운 관점**: 다른 각도에서의 접근이나 추가 정보 제공
 3. **실용성**: 독자가 실제로 활용할 수 있는 구체적인 내용
-4. **길이**: 400-600단어 내외로 확장
+4. **길이**: 300-500단어 내외로 확장
+
+## 주의사항:
+- 불필요한 리스트 기호(*, -, —) 단독 사용 금지
+- 의미없는 마크다운 요소 사용 금지
+- 명확한 소제목과 단락 구조 유지
 
 기존 콘텐츠에 자연스럽게 이어질 추가 내용만 작성해주세요.
-마크다운 형식을 유지하고, 마무리는 하지 마세요.
+마무리는 하지 마세요.
 """,
         )
 
@@ -132,18 +137,19 @@ class ContentGenerator:
 {full_content}
 
 ## 결론 작성 지침:
-1. **핵심 요약**: 주요 내용을 간결하게 정리 (중복 없이)
-2. **실행 가능한 다음 단계**: 독자가 취할 수 있는 구체적 행동 제시
-3. **긍정적 마무리**: 독자에게 동기부여가 되는 메시지
-4. **길이**: 150-200단어 내외의 간결한 마무리
+1. **핵심 요약**: 주요 내용을 2-3문장으로 간결하게 정리
+2. **실행 가능한 제안**: 독자가 당장 시도할 수 있는 구체적 행동 1-2가지
+3. **자연스러운 마무리**: 과장되지 않은 현실적인 메시지
+4. **길이**: 100-150단어 내외의 깔끔한 마무리
 
 ## 주의사항:
-- 기존 콘텐츠에서 이미 언급된 내용 반복 금지
-- "마지막으로", "결론적으로" 등의 뻔한 표현 자제
-- 자연스럽고 유용한 마무리로 완성
+- 기존 콘텐츠 반복 금지
+- "마지막으로", "결론적으로", "앞으로 더 많은" 등 뻔한 표현 사용 금지
+- 과도한 홍보성 문구나 긴 부제목 형태 금지
+- 단순하고 실용적인 마무리로 완성
 
 ## 결론
-제목 없이 바로 결론 내용만 작성해주세요.
+제목 없이 간결한 결론만 작성해주세요.
 """,
         )
 
@@ -168,7 +174,7 @@ class ContentGenerator:
 
     def _insert_anchor_text(self, content: str, target_url: str, keyword: str) -> str:
         """
-        콘텐츠에 자연스럽게 앵커 텍스트 삽입 (다중 키워드 지원)
+        콘텐츠에 자연스럽게 앵커 텍스트 삽입 (제목 제외, 본문에만)
 
         Args:
             content: 원본 콘텐츠
@@ -182,46 +188,65 @@ class ContentGenerator:
         if f"[{keyword}]" in content or target_url in content:
             return content
 
-        # 키워드의 다양한 형태 패턴 생성
-        keyword_variations = [
-            keyword,  # 기본 키워드
-            f"{keyword}는",  # 조사 포함
-            f"{keyword}을",
-            f"{keyword}를",
-            f"{keyword}와",
-            f"{keyword}의",
-            f"{keyword}에",
-            f"{keyword}으로",
-        ]
+        # 콘텐츠를 줄 단위로 분리
+        lines = content.split("\n")
+        modified_lines = []
+        link_inserted = False
 
-        # 첫 번째로 찾은 키워드에만 링크 적용
-        for variation in keyword_variations:
-            pattern = re.escape(variation)
-            if re.search(pattern, content):
-                # 링크 삽입 (첫 번째 발견만)
-                modified_content = re.sub(
-                    pattern, f"[{variation}]({target_url})", content, count=1
-                )
-                return modified_content
+        for line in lines:
+            # 제목 줄은 앵커 텍스트 삽입 제외 (# ## ### #### 시작하는 줄)
+            if line.strip().startswith("#") or link_inserted:
+                modified_lines.append(line)
+                continue
 
-        # 키워드를 찾지 못한 경우 기본 키워드로 첫 번째 단락에 추가
-        paragraphs = content.split("\n\n")
-        if len(paragraphs) > 1:
-            # 첫 번째 단락 끝에 자연스럽게 키워드 추가
-            first_paragraph = paragraphs[0]
-            if not first_paragraph.strip().endswith("."):
-                first_paragraph += (
-                    f". [{keyword}]({target_url})에 대해 더 자세히 알아보겠습니다."
-                )
-            else:
-                first_paragraph += (
-                    f" [{keyword}]({target_url})에 대한 내용을 살펴보겠습니다."
-                )
+            # 키워드의 다양한 형태 패턴 생성
+            keyword_variations = [
+                keyword,  # 기본 키워드
+                f"{keyword}는",  # 조사 포함
+                f"{keyword}을",
+                f"{keyword}를",
+                f"{keyword}와",
+                f"{keyword}의",
+                f"{keyword}에",
+                f"{keyword}으로",
+            ]
 
-            paragraphs[0] = first_paragraph
-            return "\n\n".join(paragraphs)
+            # 첫 번째로 찾은 키워드에만 링크 적용 (본문에서만)
+            line_modified = False
+            for variation in keyword_variations:
+                pattern = re.escape(variation)
+                if re.search(pattern, line) and not link_inserted:
+                    # 링크 삽입 (첫 번째 발견만)
+                    line = re.sub(
+                        pattern, f"[{variation}]({target_url})", line, count=1
+                    )
+                    link_inserted = True
+                    line_modified = True
+                    break
 
-        return content
+            modified_lines.append(line)
+
+        # 키워드를 찾지 못한 경우 첫 번째 본문 단락에 자연스럽게 추가
+        if not link_inserted:
+            for i, line in enumerate(modified_lines):
+                # 제목이 아닌 첫 번째 본문 단락을 찾아서 키워드 추가
+                if (
+                    line.strip()
+                    and not line.strip().startswith("#")
+                    and len(line.strip()) > 20
+                ):
+                    if not line.strip().endswith("."):
+                        modified_lines[i] = (
+                            line + f" [{keyword}]({target_url})에 대해 알아보겠습니다."
+                        )
+                    else:
+                        modified_lines[i] = (
+                            line
+                            + f" [{keyword}]({target_url})에 대한 정보를 제공합니다."
+                        )
+                    break
+
+        return "\n".join(modified_lines)
 
     def generate_content(
         self,
@@ -373,10 +398,19 @@ class ContentGenerator:
         Returns:
             HTML 형태의 콘텐츠
         """
-        # HTML 변환 로직
+        # 1단계: 불필요한 마크다운 기호 먼저 제거
         html_content = markdown_content
 
-        # 제목 변환
+        # 의미없는 리스트 항목 제거 (*, *, —, -, 등만 있는 줄)
+        html_content = re.sub(r"^\s*[*–—-]\s*$", "", html_content, flags=re.MULTILINE)
+        html_content = re.sub(
+            r"^\s*[*–—-]\s+—\s*$", "", html_content, flags=re.MULTILINE
+        )
+
+        # 연속된 빈 줄 정리
+        html_content = re.sub(r"\n{3,}", "\n\n", html_content)
+
+        # 2단계: 제목 변환
         html_content = re.sub(
             r"^# (.+)$", r"<h1>\1</h1>", html_content, flags=re.MULTILINE
         )
@@ -390,7 +424,12 @@ class ContentGenerator:
             r"^#### (.+)$", r"<h4>\1</h4>", html_content, flags=re.MULTILINE
         )
 
-        # 단락 구분 개선 (빈 줄을 기준으로 단락 나누기)
+        # 3단계: 링크 변환 (앵커 텍스트)
+        html_content = re.sub(
+            r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', html_content
+        )
+
+        # 4단계: 단락 구분 개선
         paragraphs = html_content.split("\n\n")
         formatted_paragraphs = []
 
@@ -399,23 +438,43 @@ class ContentGenerator:
             if not paragraph:
                 continue
 
-            # 제목이 아닌 일반 텍스트는 <p> 태그로 감싸기
+            # 제목이 아닌 일반 텍스트 처리
             if not re.match(r"<h[1-6]>", paragraph):
-                # 리스트 항목 처리
-                if paragraph.startswith("–") or paragraph.startswith("-"):
-                    # 리스트를 <ul> 태그로 변환
-                    list_items = paragraph.split("\n")
+                # 실제 의미있는 리스트 항목만 처리
+                list_lines = paragraph.split("\n")
+                meaningful_list_items = []
+
+                for line in list_lines:
+                    line = line.strip()
+                    # 의미있는 내용이 있는 리스트 항목만 포함
+                    if (
+                        line.startswith("–")
+                        or line.startswith("-")
+                        or line.startswith("*")
+                    ) and len(line) > 5:
+                        cleaned_item = re.sub(r"^[–*-]\s*", "", line)
+                        if (
+                            cleaned_item.strip() and len(cleaned_item.strip()) > 3
+                        ):  # 의미있는 내용만
+                            meaningful_list_items.append(cleaned_item.strip())
+
+                if meaningful_list_items and len(meaningful_list_items) > 1:
+                    # 의미있는 리스트가 2개 이상인 경우에만 ul 태그 사용
                     ul_content = "<ul>\n"
-                    for item in list_items:
-                        if item.strip().startswith("–") or item.strip().startswith("-"):
-                            cleaned_item = re.sub(r"^[–-]\s*", "", item.strip())
-                            ul_content += f"<li>{cleaned_item}</li>\n"
+                    for item in meaningful_list_items:
+                        ul_content += f"<li>{item}</li>\n"
                     ul_content += "</ul>"
                     formatted_paragraphs.append(ul_content)
                 else:
-                    # 일반 단락
-                    lines = paragraph.split("\n")
-                    clean_lines = [line.strip() for line in lines if line.strip()]
+                    # 일반 단락으로 처리
+                    # 리스트 기호 제거하고 텍스트만 남기기
+                    clean_text = re.sub(r"^[–*-]\s*", "", paragraph, flags=re.MULTILINE)
+                    lines = clean_text.split("\n")
+                    clean_lines = [
+                        line.strip()
+                        for line in lines
+                        if line.strip() and len(line.strip()) > 2
+                    ]
                     if clean_lines:
                         formatted_paragraphs.append(
                             f'<p>{"<br>".join(clean_lines)}</p>'
@@ -423,16 +482,17 @@ class ContentGenerator:
             else:
                 formatted_paragraphs.append(paragraph)
 
-        # 최종 HTML 조합
+        # 5단계: 최종 HTML 조합
         html_result = "\n\n".join(formatted_paragraphs)
 
-        # 강조 텍스트 처리
+        # 6단계: 강조 텍스트 처리
         html_result = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html_result)
-        html_result = re.sub(r"\*(.+?)\*", r"<em>\1</em>", html_result)
+        html_result = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", html_result)
 
-        # 중복 단락 및 불필요한 마크다운 기호 제거
+        # 7단계: 최종 정리
         html_result = re.sub(r"#{1,6}\s*", "", html_result)  # 남은 ### 기호 제거
         html_result = re.sub(r"—+", "", html_result)  # —— 기호 제거
+        html_result = re.sub(r"\n{3,}", "\n\n", html_result)  # 과도한 줄바꿈 정리
 
         return html_result
 
