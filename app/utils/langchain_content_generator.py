@@ -2,17 +2,17 @@
 단순하고 효과적인 한글 블로그 콘텐츠 생성 모듈
 - 자연스러운 콘텐츠 연결에 집중
 - ConversationSummaryMemory로 컨텍스트 관리
-- 마지막 섹션 기반 매끄러운 확장
+- 중복 방지 및 논리적 흐름 보장
 - 마크다운을 HTML로 자동 변환
 - 자연스러운 앵커텍스트 삽입 지원
 - SEO 친화적이면서 가독성 높은 콘텐츠 생성
-- v2.1 - PBN 특성에 맞게 단순화 및 최적화 (2025.07.15)
+- v2.2 - 중복 방지 및 자연스러운 흐름 개선 (2025.07.15)
 """
 
 import os
 import re
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
@@ -118,7 +118,7 @@ class ContentGenerator:
 """,
         )
 
-        # 스마트 확장 콘텐츠 생성 프롬프트
+        # 개선된 확장 콘텐츠 생성 프롬프트
         self.smart_expansion_prompt = PromptTemplate(
             input_variables=[
                 "keyword",
@@ -126,9 +126,10 @@ class ContentGenerator:
                 "content_summary",
                 "expansion_focus",
                 "last_section",
+                "used_topics",
             ],
             template="""
-기존 블로그 콘텐츠를 자연스럽게 확장하여 더 풍부하고 유용한 정보를 추가해주세요.
+기존 블로그 콘텐츠를 자연스럽게 확장하여 새로운 관점의 유용한 정보를 추가해주세요.
 
 현재 연도: 2025년
 키워드: {keyword}
@@ -141,36 +142,40 @@ class ContentGenerator:
 ## 마지막 섹션 내용 (연결 참고용):
 {last_section}
 
+## 이미 다룬 주제들 (중복 금지):
+{used_topics}
+
 ## 확장 지침:
-1. **자연스러운 연결**: 마지막 섹션에서 자연스럽게 이어지는 내용 작성
-2. **매끄러운 전환**: 갑작스러운 주제 변경 없이 부드럽게 연결
-3. **새로운 관점**: 다른 각도에서의 접근이나 추가 정보 제공
-4. **실용성**: 독자가 실제로 활용할 수 있는 구체적인 내용
+1. **새로운 관점**: 이미 다룬 주제와 중복되지 않는 새로운 시각 제시
+2. **자연스러운 연결**: 마지막 섹션의 맥락을 이어받되, 새로운 정보 제공
+3. **구체성**: 추상적 설명보다 실용적이고 구체적인 내용 우선
+4. **실행 가능성**: 독자가 바로 적용할 수 있는 방법론 제시
 5. **길이**: 300-500단어 내외로 확장
 6. **최신성**: 2025년 기준의 최신 정보와 트렌드 반영
 
 ## 확장 콘텐츠 구성:
-1. **연결 문구**: 이전 내용과 자연스럽게 연결되는 1-2문장 (선택사항)
-2. **새로운 소제목**: 확장 내용에 맞는 적절한 소제목 (### 사용)
-3. **상세 내용**: 구체적이고 유용한 정보 제공
+1. **새로운 소제목**: 확장 내용에 맞는 명확한 소제목 (### 사용)
+2. **차별화된 내용**: 기존 내용과 겹치지 않는 새로운 정보
+3. **실제 사례**: 구체적인 예시나 케이스 스터디 (가능하면)
 
-## 주의사항:
-- "추가로", "또한", "더불어" 등 자연스러운 연결어 사용
-- 인위적인 제목이나 구분선 사용 금지
+## 엄격한 금지사항:
+- 이미 언급된 주제나 예시 재사용 금지
+- "또한", "추가로", "더불어" 등 뻔한 연결어 남용 금지
 - "기존 콘텐츠에 추가" 같은 메타적 언급 금지
+- 동일한 키워드나 표현의 과도한 반복 금지
 - 과거 연도(2024년, 2023년 등) 언급 금지
-- 2025년 현재의 상황과 트렌드 우선 반영
 
-기존 콘텐츠에 자연스럽게 이어질 확장 내용을 작성해주세요.
+## 요구사항:
+기존 콘텐츠와 차별화된 새로운 관점의 확장 내용만 작성하세요.
 마무리는 하지 마세요.
 """,
         )
 
-        # 통합 결론 생성 프롬프트
+        # 간결한 결론 생성 프롬프트
         self.conclusion_prompt = PromptTemplate(
             input_variables=["keyword", "title", "content_summary", "key_points"],
             template="""
-블로그 포스트의 결론 부분을 작성해주세요.
+블로그 포스트의 간결하고 실용적인 결론을 작성해주세요.
 
 현재 연도: 2025년
 키워드: {keyword}
@@ -186,16 +191,14 @@ class ContentGenerator:
 1. **핵심 요약**: 주요 내용을 2-3문장으로 간결하게 정리
 2. **실행 가능한 제안**: 독자가 당장 시도할 수 있는 구체적 행동 1-2가지
 3. **자연스러운 마무리**: 과장되지 않은 현실적인 메시지
-4. **길이**: 100-150단어 내외의 깔끔한 마무리
-5. **시의성**: 2025년 현재 상황에 맞는 조언과 전망
+4. **길이**: 80-120단어 내외의 깔끔한 마무리
+5. **시의성**: 2025년 현재 상황에 맞는 조언
 
-## 주의사항:
-- 기존 콘텐츠 반복 금지
-- "마지막으로", "결론적으로", "앞으로 더 많은" 등 뻔한 표현 사용 금지
-- 과도한 홍보성 문구나 긴 부제목 형태 금지
-- 단순하고 실용적인 마무리로 완성
-- 과거 연도(2024년, 2023년 등) 언급 금지
-- 2025년 현재의 관점에서 마무리
+## 금지사항:
+- 기존 콘텐츠 내용 반복 금지
+- "마지막으로", "결론적으로" 등 뻔한 표현 금지
+- 과도한 홍보성 문구나 긴 설명 금지
+- 새로운 정보 추가 금지 (결론에만 집중)
 
 ## 결론
 제목 없이 간결한 결론만 작성해주세요.
@@ -218,7 +221,7 @@ class ContentGenerator:
         return ConversationSummaryMemory(
             llm=self.summary_llm,
             return_messages=True,
-            max_token_limit=600,  # PBN 콘텐츠에 적합한 크기
+            max_token_limit=500,  # 더 간결한 요약으로 중복 방지
         )
 
     def _extract_last_section(self, content: str) -> str:
@@ -226,23 +229,58 @@ class ContentGenerator:
         lines = content.strip().split("\n")
         last_section_lines = []
 
-        # 마지막 200자 정도의 의미있는 내용 추출
+        # 마지막 150자 정도의 의미있는 내용 추출 (더 간결하게)
         content_length = 0
         for line in reversed(lines):
-            if line.strip() and content_length < 200:
+            if line.strip() and content_length < 150:
                 last_section_lines.insert(0, line)
                 content_length += len(line)
-            if content_length >= 200:
+            if content_length >= 150:
                 break
 
-        return "\n".join(last_section_lines[-4:])  # 마지막 4줄 정도
+        return "\n".join(last_section_lines[-3:])  # 마지막 3줄 정도
+
+    def _extract_used_topics(self, content: str) -> str:
+        """이미 사용된 주제들 추출 (중복 방지용)"""
+        # 소제목들 추출
+        headers = re.findall(r"^#{2,4}\s+(.+)$", content, re.MULTILINE)
+
+        # 주요 키워드 추출 (AI, 빅데이터, 도구, 분석 등)
+        key_terms = []
+        common_terms = [
+            "AI",
+            "빅데이터",
+            "도구",
+            "분석",
+            "전문가",
+            "협업",
+            "내부 링크",
+            "자연스러운",
+            "신뢰도",
+        ]
+
+        for term in common_terms:
+            if term in content:
+                key_terms.append(term)
+
+        used_list = []
+        if headers:
+            used_list.extend(
+                [f"- {header}" for header in headers[:4]]
+            )  # 최대 4개 소제목
+        if key_terms:
+            used_list.extend(
+                [f"- {term} 관련 내용" for term in key_terms[:3]]
+            )  # 최대 3개 키워드
+
+        return "\n".join(used_list) if used_list else "- 아직 다룬 주제 없음"
 
     def _extract_key_points(self, content: str) -> str:
         """콘텐츠에서 주요 포인트 추출"""
         # 소제목들 추출
         headers = re.findall(r"^#{2,4}\s+(.+)$", content, re.MULTILINE)
         if headers:
-            return "- " + "\n- ".join(headers[:5])  # 최대 5개 소제목
+            return "- " + "\n- ".join(headers[:4])  # 최대 4개 소제목
 
         # 소제목이 없으면 첫 문장들 추출
         sentences = content.split(".")[:3]
@@ -342,11 +380,11 @@ class ContentGenerator:
         keyword: str,
         title: str,
         target_url: Optional[str] = None,
-        target_word_count: int = 1500,
-        max_expansions: int = 3,
+        target_word_count: int = 1200,  # 더 현실적인 목표
+        max_expansions: int = 2,  # 확장 횟수 줄임
     ) -> Dict[str, Any]:
         """
-        단순하고 효과적인 콘텐츠 생성 (초기 + 자연스러운 확장 + 통합 결론)
+        개선된 콘텐츠 생성 (중복 방지 + 자연스러운 흐름)
 
         Args:
             keyword: 주요 키워드
@@ -359,7 +397,7 @@ class ContentGenerator:
             생성 결과 딕셔너리
         """
         try:
-            logger.info(f"콘텐츠 생성 시작: {title}")
+            logger.info(f"개선된 콘텐츠 생성 시작: {title}")
 
             # 1회성 메모리 초기화 (PBN 특성에 맞게)
             memory = self._create_memory()
@@ -384,12 +422,12 @@ class ContentGenerator:
             full_content = initial_content
             expansions_used = 0
 
-            # 2단계: 스마트한 콘텐츠 확장
+            # 2단계: 차별화된 콘텐츠 확장
             expansion_focuses = [
-                "실제 사례와 구체적인 예시",
-                "단계별 실행 방법과 실용적인 팁",
-                "주의사항과 문제해결 방법",
-                "최신 트렌드와 전망",
+                "구체적인 실행 단계와 체크리스트",
+                "최신 도구와 기술 활용법",
+                "실제 성공 사례와 주의점",
+                "미래 트렌드와 대응 전략",
             ]
 
             while (
@@ -397,7 +435,7 @@ class ContentGenerator:
                 and expansions_used < max_expansions
             ):
                 logger.info(
-                    f"2단계: 스마트 콘텐츠 확장 {expansions_used + 1}차 (현재 {current_word_count}단어)"
+                    f"2단계: 차별화된 콘텐츠 확장 {expansions_used + 1}차 (현재 {current_word_count}단어)"
                 )
 
                 # 메모리에서 요약 가져오기
@@ -406,9 +444,12 @@ class ContentGenerator:
                 # 마지막 섹션 추출 (자연스러운 연결을 위해)
                 last_section = self._extract_last_section(full_content)
 
+                # 이미 사용된 주제들 추출 (중복 방지)
+                used_topics = self._extract_used_topics(full_content)
+
                 focus = expansion_focuses[expansions_used % len(expansion_focuses)]
 
-                # 스마트 확장 콘텐츠 생성
+                # 차별화된 확장 콘텐츠 생성
                 expanded_content = self.expansion_chain.invoke(
                     {
                         "keyword": keyword,
@@ -416,6 +457,7 @@ class ContentGenerator:
                         "content_summary": content_summary,
                         "expansion_focus": focus,
                         "last_section": last_section,
+                        "used_topics": used_topics,
                     }
                 )
 
@@ -426,12 +468,12 @@ class ContentGenerator:
 
                 # 메모리 업데이트
                 memory.save_context(
-                    {"input": f"{focus}에 대한 추가 내용을 작성해주세요."},
+                    {"input": f"{focus}에 대한 새로운 관점의 내용을 작성해주세요."},
                     {"output": expanded_content},
                 )
 
-            # 3단계: 통합 결론 생성
-            logger.info("3단계: 통합 결론 생성 중...")
+            # 3단계: 간결한 결론 생성
+            logger.info("3단계: 간결한 결론 생성 중...")
 
             # 전체 콘텐츠 요약과 주요 포인트 추출
             final_summary = memory.buffer
@@ -458,7 +500,7 @@ class ContentGenerator:
             # HTML 변환
             html_content = self._markdown_to_html(full_content)
 
-            logger.info(f"콘텐츠 생성 완료! 최종 단어 수: {final_word_count}")
+            logger.info(f"개선된 콘텐츠 생성 완료! 최종 단어 수: {final_word_count}")
 
             return {
                 "success": True,
@@ -618,7 +660,7 @@ class ContentGenerator:
 
 
 def test_content_generation():
-    """콘텐츠 생성 테스트 함수"""
+    """개선된 콘텐츠 생성 테스트 함수"""
     try:
         generator = ContentGenerator()
 
@@ -627,7 +669,7 @@ def test_content_generation():
         test_title = "초보자를 위한 블로그 마케팅 완벽 가이드"
         test_url = "https://example.com"
 
-        # 콘텐츠 생성
+        # 개선된 콘텐츠 생성
         result = generator.generate_content(
             keyword=test_keyword,
             title=test_title,
@@ -637,7 +679,7 @@ def test_content_generation():
 
         # 결과 출력 (테스트용으로만 print 사용)
         if __name__ == "__main__":
-            print("=== 단순화된 생성 결과 ===")
+            print("=== 중복 방지 개선 결과 ===")
             print(f"성공 여부: {result['success']}")
             print(f"제목: {result['title']}")
             print(f"키워드: {result['keyword']}")
@@ -646,7 +688,7 @@ def test_content_generation():
             print("\n=== HTML 콘텐츠 (일부) ===")
             print(result["html_content"][:500] + "...")
 
-        logger.info(f"테스트 완료: {result['success']}")
+        logger.info(f"개선된 테스트 완료: {result['success']}")
         return result
 
     except Exception as e:
