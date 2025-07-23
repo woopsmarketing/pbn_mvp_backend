@@ -286,18 +286,26 @@ async def rest_test_request(request: PbnSampleRequest):
 
         # 4. 이메일 확인 태스크 등록
         logger.info("이메일 태스크 등록 시도")
+        email_task_result = None  # 변수 초기화
 
         try:
             from app.tasks.email_tasks import send_order_confirmation_email
 
+            # 함수 시그니처에 맞게 order_details 딕셔너리로 전달
+            order_details = {
+                "target_url": request.target_url,
+                "keyword": request.keyword,
+                "service_type": "PBN 백링크",
+                "quantity": 1,
+                "price": 0.0,
+                "type": "free_pbn",
+                "status": "pending",
+            }
+
             email_task_result = send_order_confirmation_email.delay(
                 user_email=user["email"],
                 order_id=order_id,
-                target_url=request.target_url,
-                keyword=request.keyword,
-                service_type="PBN 백링크",
-                quantity=1,
-                price=0.0,
+                order_details=order_details,
             )
 
             logger.info(f"이메일 태스크 등록 완료: {email_task_result.id}")
@@ -307,6 +315,7 @@ async def rest_test_request(request: PbnSampleRequest):
 
         # 5. PBN 백링크 생성 태스크 등록
         logger.info("PBN 태스크 등록 시도")
+        pbn_task_result = None  # 변수 초기화
 
         try:
             from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
