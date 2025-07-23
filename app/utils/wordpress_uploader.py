@@ -15,6 +15,7 @@ import time
 from typing import Optional, Dict, Any, List
 from wordpress_xmlrpc import Client
 from wordpress_xmlrpc.methods import media
+import re
 
 
 class WordPressUploader:
@@ -211,10 +212,25 @@ class WordPressUploader:
                         print(f"[WordPress] 태그 생성 건너뜀 ({tag_name}): {e}")
                         continue  # 태그 실패해도 계속 진행
 
-            # 포스트 데이터 구성
+            # 콘텐츠 유효성 검사 및 처리 (empty_content 에러 방지)
+            if not title or not title.strip():
+                print(f"[WordPress] 제목이 비어있음")
+                return {"success": False, "error": "제목이 비어있습니다"}
+
+            if not content or not content.strip():
+                print(f"[WordPress] 콘텐츠가 비어있음")
+                return {"success": False, "error": "콘텐츠가 비어있습니다"}
+
+            # HTML 태그 제거하여 실제 텍스트 길이 확인
+            clean_content = re.sub(r"<[^>]+>", "", content.strip())
+            if len(clean_content) < 10:
+                print(f"[WordPress] 콘텐츠가 너무 짧음: {len(clean_content)}자")
+                return {"success": False, "error": "콘텐츠가 너무 짧습니다"}
+
+            # 포스트 데이터 구성 (인코딩 안전 처리)
             post_data = {
-                "title": title,
-                "content": content,
+                "title": title.strip(),
+                "content": content.strip(),
                 "status": status,
             }
 
@@ -228,31 +244,49 @@ class WordPressUploader:
             if categories:
                 post_data["categories"] = categories
 
-            if excerpt:
-                post_data["excerpt"] = excerpt
+            if excerpt and excerpt.strip():
+                post_data["excerpt"] = excerpt.strip()
+
+            # 디버깅 로그 추가
+            print(f"[WordPress] 전송할 데이터 검증:")
+            print(f"  - 제목 길이: {len(post_data['title'])} 문자")
+            print(f"  - 콘텐츠 길이: {len(post_data['content'])} 문자")
+            print(f"  - 상태: {post_data['status']}")
+            print(f"  - 태그 수: {len(tag_ids) if tag_ids else 0}")
 
             # REST API로 포스트 생성 (서버 오류 시 재시도)
             max_retries = 2
             for retry in range(max_retries + 1):
                 try:
+                    # 요청 헤더에 Content-Type 명시적 설정
+                    headers = self.rest_headers.copy()
+                    headers["Content-Type"] = "application/json; charset=utf-8"
+
                     response = requests.post(
                         f"{self.rest_api_url}/posts",
-                        headers=self.rest_headers,
+                        headers=headers,
                         json=post_data,
                         timeout=60,
                     )
-                    
+
                     # 서버 오류 코드인 경우 재시도
-                    if response.status_code in [503, 504, 508, 502, 500] and retry < max_retries:
-                        print(f"[WordPress] 서버 오류 감지 (HTTP {response.status_code}), {retry + 1}/{max_retries} 재시도...")
+                    if (
+                        response.status_code in [503, 504, 508, 502, 500]
+                        and retry < max_retries
+                    ):
+                        print(
+                            f"[WordPress] 서버 오류 감지 (HTTP {response.status_code}), {retry + 1}/{max_retries} 재시도..."
+                        )
                         time.sleep(5)  # 5초 대기 후 재시도
                         continue
-                    
+
                     break  # 성공하거나 재시도 횟수 초과 시 종료
-                    
+
                 except Exception as e:
                     if retry < max_retries:
-                        print(f"[WordPress] 요청 오류, {retry + 1}/{max_retries} 재시도: {e}")
+                        print(
+                            f"[WordPress] 요청 오류, {retry + 1}/{max_retries} 재시도: {e}"
+                        )
                         time.sleep(5)
                         continue
                     raise  # 마지막 시도에서도 실패하면 예외 발생
