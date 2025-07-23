@@ -146,7 +146,6 @@ async def rest_test_request(request: PbnSampleRequest):
             user_data = {
                 "clerk_id": test_clerk_id,
                 "email": "test@example.com",
-                "name": "Test User",
                 "created_at": datetime.now().isoformat(),
             }
             user = create_user_via_rest(user_data)
