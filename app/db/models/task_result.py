@@ -65,7 +65,7 @@ class TaskResult(Base):
     # 메타데이터
     duration_seconds = Column(Integer, nullable=True, comment="실행 시간(초)")
     is_critical = Column(Boolean, default=False, comment="중요 작업 여부")
-    metadata = Column(JSON, nullable=True, comment="추가 메타데이터")
+    meta_data = Column(JSON, nullable=True, comment="추가 메타데이터")
 
     def __repr__(self):
         return f"<TaskResult(task_id='{self.task_id}', status='{self.status}', task_name='{self.task_name}')>"
