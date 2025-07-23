@@ -85,18 +85,41 @@ def create_pbn_backlink_rest(
 
             # PBN 사이트 정보가 있으면 포스팅 시도
             site = clean_domain  # 이후 로직에서 사용할 변수명 통일
+
+            # 사용자명 추출
             wp_user = (
                 site_record.get("wp_admin_user")
                 or site_record.get("wp_admin_id")
                 or site_record.get("username")
             )
-            wp_password = (
-                site_record.get("wp_admin_pw")
+
+            # Application Password 추출 (REST API용)
+            wp_app_password = (
+                site_record.get("wp_app_password")
+                or site_record.get("application_password")
+                or site_record.get("app_password")
+                or site_record.get("wp_admin_pw")
                 or site_record.get("wp_admin_password")
                 or site_record.get("password")
             )
 
-            if wp_user and wp_password:
+            # XML-RPC Password (이미지 업로드용)
+            wp_xmlrpc_password = (
+                site_record.get("wp_admin_pw")
+                or site_record.get("wp_admin_password")
+                or site_record.get("password")
+                or wp_app_password  # 백업으로 app_password 사용
+            )
+
+            logger.info(f"PBN 사이트 자격정보 확인:")
+            logger.info(f"  - 사용자명: {wp_user}")
+            logger.info(f"  - App Password 존재: {'Yes' if wp_app_password else 'No'}")
+            logger.info(
+                f"  - XMLRPC Password 존재: {'Yes' if wp_xmlrpc_password else 'No'}"
+            )
+            logger.info(f"  - 사이트 레코드 키들: {list(site_record.keys())}")
+
+            if wp_user and wp_app_password:
                 logger.info(f"실제 워드프레스 사이트에 포스팅 시도: {site}")
 
                 try:
@@ -150,8 +173,8 @@ def create_pbn_backlink_rest(
                     uploader = WordPressUploader(
                         site_url=full_site_url,
                         username=wp_user,
-                        password=wp_password,
-                        app_password=wp_password,
+                        password=wp_xmlrpc_password,  # XML-RPC용 (이미지 업로드)
+                        app_password=wp_app_password,  # REST API용 (포스트 생성)
                     )
 
                     post_result = uploader.upload_complete_post(
@@ -176,7 +199,12 @@ def create_pbn_backlink_rest(
                     logger.error(f"실제 포스팅 중 오류 발생: {e}")
                     logger.info("다음 PBN 사이트로 시도합니다...")
             else:
-                logger.warning(f"PBN 사이트 자격정보 없음: {site}, 다음 사이트 시도")
+                logger.warning(f"PBN 사이트 자격정보 부족: {site}")
+                logger.warning(f"  - wp_user: {wp_user}")
+                logger.warning(
+                    f"  - wp_app_password: {'[설정됨]' if wp_app_password else '[없음]'}"
+                )
+                logger.warning("다음 사이트로 시도합니다...")
 
         # 모든 PBN 사이트 시도 완료
         if not backlink_url:
