@@ -47,11 +47,33 @@ def create_user_via_rest(user_data):
 
     url = f"{supabase['url']}/rest/v1/users"
 
-    response = requests.post(url, json=user_data, headers=headers)
-    if response.status_code in [200, 201]:
-        return response.json()[0] if response.json() else None
-    else:
-        logger.error(f"User creation failed: {response.status_code} - {response.text}")
+    try:
+        response = requests.post(url, json=user_data, headers=headers)
+        logger.info(
+            f"Supabase 응답: status={response.status_code}, content_length={len(response.content)}"
+        )
+
+        if response.status_code in [200, 201]:
+            if not response.content:
+                logger.warning("빈 응답 받음 - 사용자 생성 실패")
+                return None
+
+            try:
+                json_data = response.json()
+                logger.info(f"사용자 생성 성공: {json_data}")
+                return (
+                    json_data[0]
+                    if isinstance(json_data, list) and json_data
+                    else json_data
+                )
+            except ValueError as e:
+                logger.error(f"JSON 파싱 에러: {e}, 응답 내용: {response.text[:200]}")
+                return None
+        else:
+            logger.error(f"사용자 생성 실패: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        logger.error(f"사용자 생성 요청 중 에러: {e}")
         return None
 
 
@@ -67,11 +89,33 @@ def create_order_via_rest(order_data):
 
     url = f"{supabase['url']}/rest/v1/orders"
 
-    response = requests.post(url, json=order_data, headers=headers)
-    if response.status_code in [200, 201]:
-        return response.json()[0] if response.json() else None
-    else:
-        logger.error(f"Order creation failed: {response.status_code} - {response.text}")
+    try:
+        response = requests.post(url, json=order_data, headers=headers)
+        logger.info(
+            f"주문 생성 응답: status={response.status_code}, content_length={len(response.content)}"
+        )
+
+        if response.status_code in [200, 201]:
+            if not response.content:
+                logger.warning("빈 응답 받음 - 주문 생성 실패")
+                return None
+
+            try:
+                json_data = response.json()
+                logger.info(f"주문 생성 성공: {json_data}")
+                return (
+                    json_data[0]
+                    if isinstance(json_data, list) and json_data
+                    else json_data
+                )
+            except ValueError as e:
+                logger.error(f"JSON 파싱 에러: {e}, 응답 내용: {response.text[:200]}")
+                return None
+        else:
+            logger.error(f"주문 생성 실패: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        logger.error(f"주문 생성 요청 중 에러: {e}")
         return None
 
 
@@ -87,12 +131,31 @@ def get_user_via_rest(clerk_id):
 
     url = f"{supabase['url']}/rest/v1/users?clerk_id=eq.{clerk_id}"
 
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        users = response.json()
-        return users[0] if users else None
-    else:
-        logger.error(f"User query failed: {response.status_code} - {response.text}")
+    try:
+        response = requests.get(url, headers=headers)
+        logger.info(
+            f"사용자 조회 응답: status={response.status_code}, content_length={len(response.content)}"
+        )
+
+        if response.status_code == 200:
+            if not response.content:
+                logger.info("사용자 조회 결과: 빈 응답 (사용자 없음)")
+                return None
+
+            try:
+                users = response.json()
+                logger.info(
+                    f"사용자 조회 결과: {len(users) if isinstance(users, list) else 1}명"
+                )
+                return users[0] if users else None
+            except ValueError as e:
+                logger.error(f"JSON 파싱 에러: {e}, 응답 내용: {response.text[:200]}")
+                return None
+        else:
+            logger.error(f"사용자 조회 실패: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        logger.error(f"사용자 조회 요청 중 에러: {e}")
         return None
 
 
@@ -108,13 +171,31 @@ def get_pbn_sites_via_rest():
 
     url = f"{supabase['url']}/rest/v1/pbn_sites?status=eq.active"
 
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        logger.error(
-            f"PBN sites query failed: {response.status_code} - {response.text}"
+    try:
+        response = requests.get(url, headers=headers)
+        logger.info(
+            f"PBN 사이트 조회 응답: status={response.status_code}, content_length={len(response.content)}"
         )
+
+        if response.status_code == 200:
+            if not response.content:
+                logger.info("PBN 사이트 조회 결과: 빈 응답")
+                return []
+
+            try:
+                pbn_sites = response.json()
+                logger.info(f"PBN 사이트 조회 결과: {len(pbn_sites)}개")
+                return pbn_sites if isinstance(pbn_sites, list) else []
+            except ValueError as e:
+                logger.error(f"JSON 파싱 에러: {e}, 응답 내용: {response.text[:200]}")
+                return []
+        else:
+            logger.error(
+                f"PBN 사이트 조회 실패: {response.status_code} - {response.text}"
+            )
+            return []
+    except Exception as e:
+        logger.error(f"PBN 사이트 조회 요청 중 에러: {e}")
         return []
 
 
