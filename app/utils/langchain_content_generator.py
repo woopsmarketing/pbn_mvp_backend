@@ -184,8 +184,8 @@ class ContentGenerator:
         Returns:
             앵커 텍스트가 삽입된 콘텐츠
         """
-        # 이미 링크가 있는지 확인
-        if f"[{keyword}]" in content or target_url in content:
+        # 이미 링크가 있는지 확인 (HTML 앵커 태그 형태)
+        if f'<a href="{target_url}">' in content or f"[{keyword}]" in content:
             return content
 
         # 콘텐츠를 줄 단위로 분리
@@ -216,9 +216,12 @@ class ContentGenerator:
             for variation in keyword_variations:
                 pattern = re.escape(variation)
                 if re.search(pattern, line) and not link_inserted:
-                    # 링크 삽입 (첫 번째 발견만)
+                    # HTML 앵커 태그로 직접 삽입 (마크다운 거치지 않음)
                     line = re.sub(
-                        pattern, f"[{variation}]({target_url})", line, count=1
+                        pattern,
+                        f'<a href="{target_url}">{variation}</a>',
+                        line,
+                        count=1,
                     )
                     link_inserted = True
                     line_modified = True
@@ -237,12 +240,13 @@ class ContentGenerator:
                 ):
                     if not line.strip().endswith("."):
                         modified_lines[i] = (
-                            line + f" [{keyword}]({target_url})에 대해 알아보겠습니다."
+                            line
+                            + f' <a href="{target_url}">{keyword}</a>에 대해 알아보겠습니다.'
                         )
                     else:
                         modified_lines[i] = (
                             line
-                            + f" [{keyword}]({target_url})에 대한 정보를 제공합니다."
+                            + f' <a href="{target_url}">{keyword}</a>에 대한 정보를 제공합니다.'
                         )
                     break
 
@@ -424,7 +428,7 @@ class ContentGenerator:
             r"^#### (.+)$", r"<h4>\1</h4>", html_content, flags=re.MULTILINE
         )
 
-        # 3단계: 링크 변환 (앵커 텍스트)
+        # 3단계: 마크다운 링크가 남아있다면 HTML로 변환 (기존 호환성 유지)
         html_content = re.sub(
             r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', html_content
         )
