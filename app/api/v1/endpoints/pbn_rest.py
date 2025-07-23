@@ -28,10 +28,29 @@ class PbnSampleRequest(BaseModel):
 
 def get_supabase_client():
     """Supabase REST API 클라이언트 설정"""
+    url = os.environ.get("SUPABASE_URL")
+    anon_key = os.environ.get("SUPABASE_ANON_KEY")
+    service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+    # 환경변수 검증
+    logger.info(f"[Supabase] URL: {url}")
+    logger.info(f"[Supabase] ANON_KEY 설정됨: {bool(anon_key)}")
+    logger.info(f"[Supabase] SERVICE_ROLE_KEY 설정됨: {bool(service_role_key)}")
+
+    if not all([url, anon_key, service_role_key]):
+        missing = []
+        if not url:
+            missing.append("SUPABASE_URL")
+        if not anon_key:
+            missing.append("SUPABASE_ANON_KEY")
+        if not service_role_key:
+            missing.append("SUPABASE_SERVICE_ROLE_KEY")
+        logger.error(f"[Supabase] 누락된 환경변수: {', '.join(missing)}")
+
     return {
-        "url": os.environ.get("SUPABASE_URL"),
-        "anon_key": os.environ.get("SUPABASE_ANON_KEY"),
-        "service_role_key": os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
+        "url": url,
+        "anon_key": anon_key,
+        "service_role_key": service_role_key,
     }
 
 
@@ -43,6 +62,7 @@ def create_user_via_rest(user_data):
         "apikey": supabase["service_role_key"],
         "Authorization": f"Bearer {supabase['service_role_key']}",
         "Content-Type": "application/json",
+        "Prefer": "return=representation",  # 🔧 생성된 데이터 반환 요청
     }
 
     url = f"{supabase['url']}/rest/v1/users"
@@ -85,6 +105,7 @@ def create_order_via_rest(order_data):
         "apikey": supabase["service_role_key"],
         "Authorization": f"Bearer {supabase['service_role_key']}",
         "Content-Type": "application/json",
+        "Prefer": "return=representation",  # 🔧 생성된 데이터 반환 요청
     }
 
     url = f"{supabase['url']}/rest/v1/orders"
