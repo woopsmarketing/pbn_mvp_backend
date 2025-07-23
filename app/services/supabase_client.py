@@ -159,6 +159,17 @@ class SupabaseClient:
             "PATCH", "orders", data=data, params=params, use_service_role=True
         )
 
+    def update_order_metadata(self, order_id: str, metadata: Dict) -> Dict:
+        """주문 메타데이터 업데이트"""
+        data = {
+            "order_metadata": metadata,
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        params = {"id": f"eq.{order_id}"}
+        return self._make_request(
+            "PATCH", "orders", data=data, params=params, use_service_role=True
+        )
+
     # PBN 사이트 관련 메서드
     def get_active_pbn_sites(self, limit: int = 10) -> List[Dict]:
         """활성 PBN 사이트 조회"""

@@ -228,10 +228,11 @@ async def rest_test_request(request: PbnSampleRequest):
     )
 
     try:
-        # 1. PBN 사이트 활성 상태 확인
-        pbn_sites = get_pbn_sites_via_rest()
-        random_pbn = pbn_sites[0] if pbn_sites else None
-        logger.debug(f"활성 PBN 사이트 조회 결과: {len(pbn_sites)}개")
+        # 1. PBN 사이트 활성 상태 확인 및 랜덤 선택
+        random_pbn = supabase_client.get_random_active_pbn_site()
+        logger.debug(
+            f"랜덤 PBN 사이트 선택: {random_pbn.get('domain') if random_pbn else 'None'}"
+        )
 
         if not random_pbn:
             logger.warning("활성 PBN 사이트 없음")
@@ -244,10 +245,10 @@ async def rest_test_request(request: PbnSampleRequest):
         if user:
             logger.debug(f"기존 사용자 사용: {user.get('id')}")
         else:
-            # 새 사용자 생성
+            # 새 사용자 생성 (실제 이메일 사용)
             user_data = {
                 "clerk_id": test_clerk_id,
-                "email": "test@example.com",
+                "email": "vnfm0580@gmail.com",  # 실제 사용자 이메일
                 "created_at": datetime.now().isoformat(),
             }
             user = create_user_via_rest(user_data)
@@ -353,16 +354,167 @@ async def rest_test_request(request: PbnSampleRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-# 별칭 엔드포인트 (기존 호환성을 위해)
+# 인증 기반 실제 엔드포인트
 @router.post("/pbn/sample-request")
-async def sample_request_alias(request: PbnSampleRequest):
-    """기존 sample-request 엔드포인트 별칭"""
-    logger.info("sample-request 별칭을 통한 요청")
+async def sample_request_authenticated(
+    request: PbnSampleRequest, current_user: dict = Depends(get_current_clerk_user)
+):
+    """실제 로그인 사용자 기반 PBN 백링크 요청"""
+    logger.info(f"인증 사용자 PBN 요청: {current_user.get('sub', 'unknown')}")
+
+    try:
+        # 1. PBN 사이트 활성 상태 확인 및 랜덤 선택 (테스트용)
+        random_pbn = supabase_client.get_random_active_pbn_site()
+        logger.debug(
+            f"테스트용 랜덤 PBN 사이트 선택: {random_pbn.get('domain') if random_pbn else 'None'}"
+        )
+
+        if not random_pbn:
+            logger.warning("활성 PBN 사이트 없음")
+            raise HTTPException(status_code=503, detail="No active PBN sites available")
+
+        # 2. 현재 로그인 사용자 정보 추출
+        clerk_id = current_user.get("sub")
+        user_email = None
+
+        # Clerk JWT에서 이메일 추출
+        if "email_addresses" in current_user and current_user["email_addresses"]:
+            user_email = current_user["email_addresses"][0].get("email_address")
+        elif "email" in current_user:
+            user_email = current_user["email"]
+
+        if not user_email or not clerk_id:
+            raise HTTPException(
+                status_code=400, detail="사용자 이메일 또는 ID를 찾을 수 없습니다"
+            )
+
+        logger.info(f"실제 사용자: {user_email} (clerk_id: {clerk_id})")
+
+        # 3. 사용자 조회 또는 생성
+        user = get_user_via_rest(clerk_id)
+
+        if user:
+            logger.debug(f"기존 사용자 사용: {user.get('id')}")
+        else:
+            # 새 사용자 생성 (실제 로그인 사용자 정보)
+            user_data = {
+                "clerk_id": clerk_id,
+                "email": user_email,
+                "created_at": datetime.now().isoformat(),
+            }
+            user = create_user_via_rest(user_data)
+            logger.info(f"새 사용자 생성: {user.get('id') if user else 'Failed'}")
+
+        if not user:
+            raise HTTPException(status_code=500, detail="Failed to create/get user")
+
+        # 4. 주문 생성
+        order_data = {
+            "id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "type": "free_pbn",
+            "status": "pending",
+            "amount": 0.0,
+            "payment_status": "paid",
+            "order_metadata": {
+                "target_url": request.target_url,
+                "keyword": request.keyword,
+                "service_type": "pbn_backlink",
+                "quantity": 1,
+                "request_type": "authenticated",
+                "pbn_count": 1,
+            },
+            "created_at": datetime.now().isoformat(),
+        }
+
+        order = create_order_via_rest(order_data)
+        logger.info(f"주문 생성 결과: {order.get('id') if order else 'Failed'}")
+
+        if not order:
+            logger.error("주문 생성 실패")
+            raise HTTPException(status_code=500, detail="Failed to create order")
+
+        order_id = order["id"]
+
+        # 5. 이메일 확인 태스크 등록
+        logger.info("이메일 태스크 등록 시도")
+        email_task_result = None
+
+        try:
+            from app.tasks.email_tasks import send_order_confirmation_email
+
+            order_details = {
+                "target_url": request.target_url,
+                "keyword": request.keyword,
+                "service_type": "PBN 백링크",
+                "quantity": 1,
+                "price": 0.0,
+                "type": "free_pbn",
+                "status": "pending",
+            }
+
+            email_task_result = send_order_confirmation_email.delay(
+                user_email=user_email,  # 실제 사용자 이메일
+                order_id=order_id,
+                order_details=order_details,
+            )
+
+            logger.info(f"이메일 태스크 등록 완료: {email_task_result.id}")
+
+        except Exception as e:
+            logger.warning(f"이메일 태스크 등록 실패: {e}")
+
+        # 6. PBN 백링크 생성 태스크 등록
+        logger.info("PBN 태스크 등록 시도")
+        pbn_task_result = None
+
+        try:
+            from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
+
+            pbn_task_result = create_pbn_backlink_rest.delay(
+                order_id=order_id,
+                target_url=request.target_url,
+                keyword=request.keyword,
+                pbn_site_domain=random_pbn.get("domain"),
+            )
+
+            logger.info(f"PBN 태스크 등록 완료: {pbn_task_result.id}")
+
+        except Exception as e:
+            logger.error(f"PBN 태스크 등록 실패: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to queue PBN task: {str(e)}"
+            )
+
+        return {
+            "success": True,
+            "message": "PBN backlink request submitted successfully",
+            "order_id": order_id,
+            "target_url": request.target_url,
+            "keyword": request.keyword,
+            "user_email": user_email,
+            "estimated_completion": "5-10 minutes",
+            "email_task_id": getattr(email_task_result, "id", None),
+            "pbn_task_id": getattr(pbn_task_result, "id", None),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"인증 엔드포인트에서 예외 발생: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# 테스트용 별칭 엔드포인트 (개발 전용)
+@router.post("/pbn/test-request")
+async def test_request_alias(request: PbnSampleRequest):
+    """개발/테스트용 엔드포인트 (인증 없음)"""
+    logger.info("test-request 개발용 엔드포인트 호출")
 
     try:
         result = await rest_test_request(request)
         logger.info("rest_test_request 호출 완료")
         return result
     except Exception as e:
-        logger.error(f"별칭 엔드포인트에서 예외 발생: {e}")
+        logger.error(f"테스트 엔드포인트에서 예외 발생: {e}")
         raise

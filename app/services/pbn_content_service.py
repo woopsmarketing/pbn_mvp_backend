@@ -29,7 +29,8 @@ class PBNContentService:
             self.title_generator = TitleGenerator()
             self.content_generator = ContentGenerator()
             self.image_generator = ImageGenerator()
-            self.wp_uploader = WordPressUploader()
+            # WordPressUploader는 PBN 사이트별로 개별 생성 (초기화에서 제외)
+            self.wp_uploader = None
             logger.info("PBN 콘텐츠 서비스 초기화 완료")
         except Exception as e:
             logger.error(f"PBN 콘텐츠 서비스 초기화 실패: {e}")
