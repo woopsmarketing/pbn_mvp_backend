@@ -198,6 +198,33 @@ class SupabaseClient:
             return None
         return random.choice(sites)
 
+    def get_random_pbn_site_excluding(self, excluded_domains: List[str]) -> Optional[str]:
+        """제외할 도메인을 제외하고 활성 PBN 사이트 중 랜덤 도메인 1개 반환"""
+        sites = self.get_active_pbn_sites(limit=50)
+        if not sites:
+            return None
+        
+        # 제외할 도메인 리스트를 정리 (https://, http://, / 제거)
+        excluded_clean = []
+        for domain in excluded_domains:
+            clean = domain.replace("https://", "").replace("http://", "").strip("/")
+            excluded_clean.append(clean)
+        
+        # 제외되지 않은 사이트만 필터링
+        available_sites = []
+        for site in sites:
+            site_domain = site.get("domain", "")
+            clean_domain = site_domain.replace("https://", "").replace("http://", "").strip("/")
+            
+            if clean_domain not in excluded_clean:
+                available_sites.append(site)
+        
+        if not available_sites:
+            return None
+            
+        selected_site = random.choice(available_sites)
+        return selected_site.get("domain", "")
+
 
 # 싱글톤 인스턴스
 supabase_client = SupabaseClient()

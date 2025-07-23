@@ -58,18 +58,35 @@ def create_pbn_backlink_rest(
                 "message": "PBN posting failed",
             }
 
-        # 3) PBN 사이트 정보 조회
-        site = pbn_site_domain or "pbn-example.com"
-        logger.info(f"사용할 PBN 사이트: {site}")
-
-        # Supabase DB에서 해당 도메인의 PBN 자격정보 조회
-        logger.info(f"PBN 사이트 정보 조회 중: {site}")
-        site_record = supabase_client.get_pbn_site_by_domain(site)
-        logger.debug(f"PBN 사이트 레코드: {site_record}")
-
+        # 3) PBN 사이트 선택 및 포스팅 시도 (최대 3개 사이트까지 시도)
+        max_pbn_attempts = 3
         backlink_url = None
+        used_sites = []
 
-        if site_record:
+        for attempt in range(max_pbn_attempts):
+            # PBN 사이트 선택 (이전에 시도했던 사이트는 제외)
+            if attempt == 0 and pbn_site_domain:
+                site = pbn_site_domain  # 첫 번째 시도는 지정된 사이트 사용
+            else:
+                # 랜덤 PBN 사이트 선택 (이전에 실패한 사이트 제외)
+                site = supabase_client.get_random_pbn_site_excluding(used_sites)
+                if not site:
+                    logger.warning("사용 가능한 PBN 사이트가 없습니다")
+                    break
+
+            used_sites.append(site)
+            logger.info(f"PBN 사이트 시도 {attempt + 1}/{max_pbn_attempts}: {site}")
+
+            # Supabase DB에서 해당 도메인의 PBN 자격정보 조회
+            site_record = supabase_client.get_pbn_site_by_domain(site)
+            logger.debug(f"PBN 사이트 레코드: {site_record}")
+
+            # 사이트 정보가 없으면 다음 사이트로
+            if not site_record:
+                logger.warning(f"PBN 사이트 정보 없음: {site}, 다음 사이트 시도")
+                continue
+
+            # PBN 사이트 정보가 있으면 포스팅 시도
             wp_user = (
                 site_record.get("wp_admin_user")
                 or site_record.get("wp_admin_id")
@@ -124,9 +141,9 @@ def create_pbn_backlink_rest(
                     # 워드프레스에 포스팅
                     logger.info(f"워드프레스 포스팅 시작: {site}")
                     poster = WordPressPoster(
-                        wp_url=f"https://{site}",
-                        wp_user=wp_user,
-                        wp_password=wp_password,
+                        domain=f"https://{site}",
+                        username=wp_user,
+                        application_password=wp_password,
                     )
 
                     post_result = poster.create_post_with_image(
@@ -139,13 +156,29 @@ def create_pbn_backlink_rest(
                     if post_result["success"]:
                         backlink_url = post_result["post_url"]
                         logger.info(f"워드프레스 포스팅 성공: {backlink_url}")
+                        break  # 성공하면 루프 종료
                     else:
                         logger.error(
                             f"워드프레스 포스팅 실패: {post_result.get('error', '알 수 없는 오류')}"
                         )
+                        logger.info("다음 PBN 사이트로 시도합니다...")
 
                 except Exception as e:
                     logger.error(f"실제 포스팅 중 오류 발생: {e}")
+                    logger.info("다음 PBN 사이트로 시도합니다...")
+            else:
+                logger.warning(f"PBN 사이트 자격정보 없음: {site}, 다음 사이트 시도")
+
+        # 모든 PBN 사이트 시도 완료
+        if not backlink_url:
+            logger.error("모든 PBN 사이트에서 포스팅 실패")
+            supabase_client.update_order_status(order_id, "failed")
+            return {
+                "success": False,
+                "order_id": order_id,
+                "message": "모든 PBN 사이트에서 포스팅 실패",
+                "attempted_sites": used_sites,
+            }
 
         # 4) 주문 메타데이터 업데이트
         logger.info("주문 메타데이터 업데이트 중...")
@@ -178,12 +211,25 @@ def create_pbn_backlink_rest(
             user_info = supabase_client.get_user(order_info["user_id"])
             if user_info and user_info.get("email"):
                 logger.info(f"이메일 발송 대기열에 추가: {user_info['email']}")
+
+                # 백링크 결과 딕셔너리 준비
+                backlink_result = {
+                    "target_url": target_url,
+                    "keyword": keyword,
+                    "pbn_urls": (
+                        [backlink_url]
+                        if backlink_url
+                        else [f"https://{site}/completed"]
+                    ),
+                    "total_backlinks": 1,
+                    "pbn_domain": site,
+                    "backlink_url": backlink_url or f"https://{site}/completed",
+                }
+
                 send_backlink_completion_email.delay(
                     user_email=user_info["email"],
-                    target_url=target_url,
-                    keyword=keyword,
-                    backlink_url=backlink_url or f"https://{site}/completed",
                     order_id=order_id,
+                    backlink_result=backlink_result,
                 )
 
         logger.info(f"PBN 백링크 태스크 완료: order_id={order_id}")

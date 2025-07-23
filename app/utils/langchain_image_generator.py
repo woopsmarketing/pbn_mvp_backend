@@ -167,11 +167,11 @@ class ImageGenerator:
 
                 # DALL-E API 호출
                 response = self.client.images.generate(
-                    model="dall-e-2",  # dall-e-2 사용으로 변경
+                    model="dall-e-2",  # dall-e-2 사용 (quality 파라미터 지원 안함)
                     prompt=prompt,
                     n=1,
                     size=size,
-                    quality="standard",  # "standard" 또는 "hd" (dall-e-3에서만 지원)
+                    # quality 파라미터는 dall-e-3에서만 지원됨 (dall-e-2에서는 제거)
                 )
 
                 image_url = response.data[0].url
