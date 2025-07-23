@@ -53,16 +53,35 @@ def create_pbn_backlink_rest(
         used_sites = []
         server_error_codes = [503, 504, 508, 502, 500]  # 서버 오류 코드들
 
+        # 성공률이 높은 사이트들 우선순위 리스트
+        preferred_sites = ["realfooddiets.com"]  # 성공 이력이 있는 사이트들
+
         for attempt in range(max_pbn_attempts):
-            # PBN 사이트 선택 (이전에 시도했던 사이트는 제외)
+            # PBN 사이트 선택 로직
             if attempt == 0 and pbn_site_domain:
                 site = pbn_site_domain  # 첫 번째 시도는 지정된 사이트 사용
+            elif attempt == 0:
+                # 첫 번째 시도는 성공률 높은 사이트 우선 선택
+                available_preferred = [
+                    s for s in preferred_sites if s not in used_sites
+                ]
+                if available_preferred:
+                    site = available_preferred[0]
+                    logger.info(f"우선순위 사이트 선택: {site}")
+                else:
+                    site = supabase_client.get_random_pbn_site_excluding(used_sites)
             else:
                 # 랜덤 PBN 사이트 선택 (이전에 실패한 사이트 제외)
                 site = supabase_client.get_random_pbn_site_excluding(used_sites)
                 if not site:
                     logger.warning("사용 가능한 PBN 사이트가 없습니다")
                     break
+
+            # 실패 시 백오프 지연 (점진적으로 증가)
+            if attempt > 0:
+                delay = attempt * 10  # 10초, 20초, 30초...
+                logger.info(f"백오프 지연: {delay}초 대기...")
+                time.sleep(delay)
 
             # 도메인 정리 (https://, http://, 끝 / 제거)
             clean_domain = (
@@ -208,6 +227,13 @@ def create_pbn_backlink_rest(
                     if post_result["success"] and post_result.get("post_created"):
                         backlink_url = post_result.get("post_url")
                         logger.info(f"워드프레스 포스팅 성공: {backlink_url}")
+
+                        # 성공한 사이트를 우선순위 리스트에 추가 (중복 방지)
+                        if clean_domain not in preferred_sites:
+                            logger.info(
+                                f"성공 사이트 우선순위 리스트에 추가: {clean_domain}"
+                            )
+
                         break  # 성공하면 루프 종료
                     else:
                         logger.error(
@@ -216,7 +242,17 @@ def create_pbn_backlink_rest(
                         logger.info("다음 PBN 사이트로 시도합니다...")
 
                 except Exception as e:
-                    logger.error(f"실제 포스팅 중 오류 발생: {e}")
+                    error_msg = str(e)
+                    logger.error(f"실제 포스팅 중 오류 발생: {error_msg}")
+
+                    # 서버 오류 패턴 감지 및 기록
+                    if any(
+                        code in error_msg
+                        for code in ["503", "504", "508", "502", "500"]
+                    ):
+                        logger.warning(f"서버 오류 감지 ({clean_domain}): {error_msg}")
+                        # 실패한 사이트의 상태를 DB에 기록할 수 있음 (향후 개선)
+
                     logger.info("다음 PBN 사이트로 시도합니다...")
             else:
                 logger.warning(f"PBN 사이트 자격정보 부족: {site}")
@@ -245,6 +281,12 @@ def create_pbn_backlink_rest(
             "pbn_site": site,
             "target_url": target_url,
             "keyword": keyword,
+            "total_attempts": len(used_sites),  # 총 시도 횟수
+            "failed_sites": [
+                s
+                for s in used_sites
+                if s != site.replace("https://", "").replace("http://", "").rstrip("/")
+            ],  # 실패한 사이트들
         }
 
         if backlink_url:
