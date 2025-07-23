@@ -11,10 +11,10 @@ import os
 import base64
 import requests
 import xmlrpc.client
+import time
 from typing import Optional, Dict, Any, List
 from wordpress_xmlrpc import Client
 from wordpress_xmlrpc.methods import media
-import time
 
 
 class WordPressUploader:
@@ -199,13 +199,17 @@ class WordPressUploader:
         try:
             print(f"[WordPress] 포스트 생성 시작: {title}")
 
-            # 태그 ID 처리
+            # 태그 ID 처리 (실패해도 포스트 생성은 계속 진행)
             tag_ids = []
             if tags:
                 for tag_name in tags:
-                    tag_id = self.create_or_get_tag(tag_name)
-                    if tag_id:
-                        tag_ids.append(tag_id)
+                    try:
+                        tag_id = self.create_or_get_tag(tag_name)
+                        if tag_id:
+                            tag_ids.append(tag_id)
+                    except Exception as e:
+                        print(f"[WordPress] 태그 생성 건너뜀 ({tag_name}): {e}")
+                        continue  # 태그 실패해도 계속 진행
 
             # 포스트 데이터 구성
             post_data = {
@@ -227,13 +231,31 @@ class WordPressUploader:
             if excerpt:
                 post_data["excerpt"] = excerpt
 
-            # REST API로 포스트 생성
-            response = requests.post(
-                f"{self.rest_api_url}/posts",
-                headers=self.rest_headers,
-                json=post_data,
-                timeout=60,
-            )
+            # REST API로 포스트 생성 (서버 오류 시 재시도)
+            max_retries = 2
+            for retry in range(max_retries + 1):
+                try:
+                    response = requests.post(
+                        f"{self.rest_api_url}/posts",
+                        headers=self.rest_headers,
+                        json=post_data,
+                        timeout=60,
+                    )
+                    
+                    # 서버 오류 코드인 경우 재시도
+                    if response.status_code in [503, 504, 508, 502, 500] and retry < max_retries:
+                        print(f"[WordPress] 서버 오류 감지 (HTTP {response.status_code}), {retry + 1}/{max_retries} 재시도...")
+                        time.sleep(5)  # 5초 대기 후 재시도
+                        continue
+                    
+                    break  # 성공하거나 재시도 횟수 초과 시 종료
+                    
+                except Exception as e:
+                    if retry < max_retries:
+                        print(f"[WordPress] 요청 오류, {retry + 1}/{max_retries} 재시도: {e}")
+                        time.sleep(5)
+                        continue
+                    raise  # 마지막 시도에서도 실패하면 예외 발생
 
             if response.status_code == 201:
                 post_data = response.json()

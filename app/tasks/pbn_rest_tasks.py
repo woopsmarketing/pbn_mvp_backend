@@ -47,10 +47,11 @@ def create_pbn_backlink_rest(
         # 2) 실제 PBN 포스팅으로 바로 진행 (시뮬레이션 제거)
         logger.info("실제 PBN 포스팅 프로세스 시작...")
 
-        # 3) PBN 사이트 선택 및 포스팅 시도 (최대 3개 사이트까지 시도)
-        max_pbn_attempts = 3
+        # 3) PBN 사이트 선택 및 포스팅 시도 (최대 5개 사이트까지 시도)
+        max_pbn_attempts = 5  # 서버 문제가 많으므로 시도 횟수 증가
         backlink_url = None
         used_sites = []
+        server_error_codes = [503, 504, 508, 502, 500]  # 서버 오류 코드들
 
         for attempt in range(max_pbn_attempts):
             # PBN 사이트 선택 (이전에 시도했던 사이트는 제외)
@@ -171,6 +172,24 @@ def create_pbn_backlink_rest(
                     full_site_url = f"https://{clean_site_url}"
 
                     logger.info(f"정리된 사이트 URL: {full_site_url}")
+
+                    # 사이트 헬스체크 (간단한 접근성 확인)
+                    try:
+                        import requests
+
+                        health_response = requests.get(full_site_url, timeout=10)
+                        if health_response.status_code in server_error_codes:
+                            logger.warning(
+                                f"사이트 헬스체크 실패: {full_site_url} - HTTP {health_response.status_code}"
+                            )
+                            logger.info("다음 PBN 사이트로 시도합니다...")
+                            continue
+                        logger.info(f"사이트 헬스체크 통과: {full_site_url}")
+                    except Exception as e:
+                        logger.warning(f"사이트 헬스체크 오류: {full_site_url} - {e}")
+                        logger.info("다음 PBN 사이트로 시도합니다...")
+                        continue
+
                     uploader = WordPressUploader(
                         site_url=full_site_url,
                         username=wp_user,
