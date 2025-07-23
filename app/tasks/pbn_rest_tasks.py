@@ -86,19 +86,20 @@ def create_pbn_backlink_rest(
             # PBN 사이트 정보가 있으면 포스팅 시도
             site = clean_domain  # 이후 로직에서 사용할 변수명 통일
 
-            # 사용자명 추출
+            # 사용자명 추출 - Supabase DB 컬럼명에 맞춤
             wp_user = (
-                site_record.get("wp_admin_user")
-                or site_record.get("wp_admin_id")
+                site_record.get("wp_admin_id")  # 실제 DB 컬럼명
+                or site_record.get("wp_admin_user")
                 or site_record.get("username")
             )
 
-            # Application Password 추출 (REST API용)
+            # Application Password 추출 (REST API용) - Supabase DB 컬럼명에 맞춤
             wp_app_password = (
-                site_record.get("wp_app_password")
+                site_record.get("wp_app_key")  # 실제 DB 컬럼명
+                or site_record.get("wp_app_password")
                 or site_record.get("application_password")
                 or site_record.get("app_password")
-                or site_record.get("wp_admin_pw")
+                or site_record.get("wp_admin_pw")  # 백업으로 관리자 비밀번호 사용
                 or site_record.get("wp_admin_password")
                 or site_record.get("password")
             )
