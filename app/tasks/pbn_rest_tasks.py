@@ -14,7 +14,7 @@ from typing import List
 
 from app.tasks.celery_app import celery as app
 from app.services.supabase_client import supabase_client
-from app.services.pbn_poster import WordPressPoster, build_html_content
+from app.services.pbn_poster import build_html_content
 from app.services.pbn_content_service import get_pbn_content_service
 
 logger = logging.getLogger(__name__)
@@ -138,23 +138,27 @@ def create_pbn_backlink_rest(
                         )
                         featured_image_path = None
 
-                    # 워드프레스에 포스팅
+                    # 워드프레스에 포스팅 (WordPressUploader 사용)
                     logger.info(f"워드프레스 포스팅 시작: {site}")
-                    poster = WordPressPoster(
-                        domain=f"https://{site}",
+                    from app.utils.wordpress_uploader import WordPressUploader
+
+                    uploader = WordPressUploader(
+                        site_url=f"https://{site}",
                         username=wp_user,
-                        application_password=wp_password,
+                        password=wp_password,
+                        app_password=wp_password,
                     )
 
-                    post_result = poster.create_post_with_image(
+                    post_result = uploader.upload_complete_post(
                         title=title,
                         content=html_content,
                         image_path=featured_image_path,
-                        tags=[keyword, "백링크", "SEO"],
+                        keyword=keyword,
+                        status="publish",
                     )
 
-                    if post_result["success"]:
-                        backlink_url = post_result["post_url"]
+                    if post_result["success"] and post_result.get("post_created"):
+                        backlink_url = post_result.get("post_url")
                         logger.info(f"워드프레스 포스팅 성공: {backlink_url}")
                         break  # 성공하면 루프 종료
                     else:
