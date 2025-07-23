@@ -44,19 +44,8 @@ def create_pbn_backlink_rest(
         supabase_client.update_order_status(order_id, "processing")
         logger.info("주문 상태 업데이트 완료")
 
-        # 2) 시뮬레이션으로 PBN 포스팅 수행 (이제는 실제 콘텐츠 생성으로 대체 예정)
-        logger.info("PBN 포스팅 시뮬레이션 시작...")
-        success = _simulate_posting(target_url, keyword)
-        logger.info(f"PBN 포스팅 시뮬레이션 결과: {success}")
-
-        if not success:
-            logger.error("PBN 포스팅 실패 - 주문 상태를 failed로 업데이트")
-            supabase_client.update_order_status(order_id, "failed")
-            return {
-                "success": False,
-                "order_id": order_id,
-                "message": "PBN posting failed",
-            }
+        # 2) 실제 PBN 포스팅으로 바로 진행 (시뮬레이션 제거)
+        logger.info("실제 PBN 포스팅 프로세스 시작...")
 
         # 3) PBN 사이트 선택 및 포스팅 시도 (최대 3개 사이트까지 시도)
         max_pbn_attempts = 3
@@ -270,20 +259,7 @@ def create_pbn_backlink_rest(
         raise self.retry(exc=e)
 
 
-def _simulate_posting(target_url: str, keyword: str) -> bool:
-    """PBN 포스팅 시뮬레이션 (테스트용)"""
-    logger.info(f"포스팅 시뮬레이션 시작: target_url={target_url}, keyword={keyword}")
-
-    # 1-3초 대기 (실제 포스팅을 시뮬레이션)
-    wait_time = random.uniform(1, 3)
-    logger.debug(f"{wait_time:.2f}초 대기 중...")
-    time.sleep(wait_time)
-
-    # 90% 확률로 성공
-    success = random.random() > 0.1
-    logger.info(f"시뮬레이션 결과: {success}")
-
-    return success
+# 시뮬레이션 함수 제거됨 - 실제 포스팅으로 바로 진행
 
 
 @app.task(bind=True, autoretry_for=(Exception,), retry_kwargs={"max_retries": 2})
