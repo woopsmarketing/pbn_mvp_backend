@@ -58,8 +58,9 @@ celery.conf.update(
     task_routes={
         # 이메일 관련 태스크
         "app.tasks.email_tasks.*": {"queue": "email"},
-        # PBN 관련 태스크
+        # PBN 관련 태스크 (REST API 버전 포함)
         "app.tasks.pbn_tasks.*": {"queue": "pbn"},
+        "app.tasks.pbn_rest_tasks.*": {"queue": "pbn"},  # ⭐ 추가된 라우팅
         # 보고서 관련 태스크
         "app.tasks.report_tasks.*": {"queue": "reports"},
         # 기본 태스크

@@ -626,7 +626,8 @@ async def sample_request_authenticated(
         order_id = order["id"]
 
         # 6. 이메일 확인 태스크 등록
-        logger.info("이메일 태스크 등록 시도")
+        logger.info("🚀 [DEBUG] 이메일 태스크 등록 시도 시작")
+        print(f"🚀 [DEBUG] 이메일 태스크 등록 시도 시작")
         email_task_result = None
 
         try:
@@ -641,22 +642,38 @@ async def sample_request_authenticated(
                 "status": "pending",
             }
 
+            print(f"🎯 [DEBUG] 이메일 태스크 파라미터 준비 완료")
+            print(f"   - user_email: {user_email}")
+            print(f"   - order_id: {order_id}")
+            print(f"   - order_details: {order_details}")
+
             email_task_result = send_order_confirmation_email.delay(
                 user_email=user_email,  # 실제 사용자 이메일
                 order_id=order_id,
                 order_details=order_details,
             )
 
+            print(f"✅ [DEBUG] 이메일 태스크 등록 성공!")
+            print(f"   - Task ID: {email_task_result.id}")
+            print(f"   - Task Status: {email_task_result.status}")
             logger.info(f"이메일 태스크 등록 완료: {email_task_result.id}")
 
         except Exception as e:
+            print(f"❌ [DEBUG] 이메일 태스크 등록 실패: {e}")
             logger.warning(f"이메일 태스크 등록 실패: {e}")
 
         # 7. PBN 백링크 생성 태스크 등록
-        logger.info("PBN 태스크 등록 시도")
+        logger.info("🚀 [DEBUG] PBN 태스크 등록 시도 시작")
+        print(f"🚀 [DEBUG] PBN 태스크 등록 시도 시작")
         pbn_task_result = None
 
         try:
+            print(f"🎯 [DEBUG] PBN 태스크 파라미터 준비 완료")
+            print(f"   - order_id: {order_id}")
+            print(f"   - target_url: {request.target_url}")
+            print(f"   - keyword: {request.keyword}")
+            print(f"   - pbn_site_domain: {random_pbn.get('domain')}")
+
             pbn_task_result = create_pbn_backlink_rest.delay(
                 order_id=order_id,
                 target_url=request.target_url,
@@ -664,9 +681,13 @@ async def sample_request_authenticated(
                 pbn_site_domain=random_pbn.get("domain"),
             )
 
+            print(f"✅ [DEBUG] PBN 태스크 등록 성공!")
+            print(f"   - Task ID: {pbn_task_result.id}")
+            print(f"   - Task Status: {pbn_task_result.status}")
             logger.info(f"PBN 태스크 등록 완료: {pbn_task_result.id}")
 
         except Exception as e:
+            print(f"❌ [DEBUG] PBN 태스크 등록 실패: {e}")
             logger.error(f"PBN 태스크 등록 실패: {e}")
             raise HTTPException(
                 status_code=500, detail=f"Failed to queue PBN task: {str(e)}"
@@ -863,3 +884,38 @@ async def test_request_alias(request: PbnSampleRequest):
     except Exception as e:
         logger.error(f"테스트 엔드포인트에서 예외 발생: {e}")
         raise
+
+
+# 디버깅용: 간단한 태스크 테스트 엔드포인트
+@router.post("/pbn/test-celery")
+async def test_celery_tasks():
+    """Celery 태스크 연결 테스트용 엔드포인트"""
+    print(f"🧪 [DEBUG] Celery 태스크 테스트 시작")
+
+    try:
+        # 이메일 태스크 임포트 확인
+        from app.tasks.email_tasks import send_welcome_email
+        from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
+        from app.tasks.celery_app import debug_task
+
+        print(f"✅ [DEBUG] 태스크 임포트 성공")
+
+        # 간단한 디버그 태스크 호출
+        debug_result = debug_task.delay()
+        print(f"🔍 [DEBUG] debug_task 호출 완료 - ID: {debug_result.id}")
+
+        # 환영 이메일 태스크 테스트 (테스트 이메일로)
+        welcome_result = send_welcome_email.delay("test@backlinkvending.com")
+        print(f"📧 [DEBUG] welcome_email 태스크 호출 완료 - ID: {welcome_result.id}")
+
+        return {
+            "success": True,
+            "message": "Celery 태스크 테스트 완료",
+            "debug_task_id": debug_result.id,
+            "welcome_task_id": welcome_result.id,
+            "note": "Celery Worker 로그를 확인하세요!",
+        }
+
+    except Exception as e:
+        print(f"❌ [DEBUG] Celery 태스크 테스트 실패: {e}")
+        return {"success": False, "error": str(e), "message": "Celery 태스크 연결 실패"}
