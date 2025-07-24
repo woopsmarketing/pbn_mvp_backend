@@ -17,6 +17,9 @@ from app.api.monitoring import router as monitoring_router
 from app.core.config import settings
 import sentry_sdk
 
+# Celery 앱 초기화 (FastAPI와 Celery 연동을 위해 필수)
+from app.tasks.celery_app import celery as celery_app
+
 sentry_sdk.init(
     dsn="https://0659715a31771946c109265f4d1c3a64@o4507567364636672.ingest.us.sentry.io/4507567368437760",
     traces_sample_rate=1.0,
@@ -44,6 +47,28 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "healthy", "message": "API is running"}
+
+
+# FastAPI 시작 시 Celery 연결 테스트
+@app.on_event("startup")
+async def startup_event():
+    """FastAPI 시작 시 Celery 연결 확인"""
+    try:
+        # Celery 브로커 연결 테스트
+        inspect = celery_app.control.inspect()
+        active_workers = inspect.active()
+
+        if active_workers:
+            print(f"✅ [FastAPI] Celery 워커 연결 성공: {list(active_workers.keys())}")
+        else:
+            print("⚠️ [FastAPI] 활성 Celery 워커 없음 - 태스크 대기열에 누적될 수 있음")
+
+        # Redis 연결 정보 출력
+        print(f"📡 [FastAPI] Celery 브로커: {celery_app.conf.broker_url}")
+        print(f"📊 [FastAPI] Celery 결과 백엔드: {celery_app.conf.result_backend}")
+
+    except Exception as e:
+        print(f"❌ [FastAPI] Celery 연결 테스트 실패: {e}")
 
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])

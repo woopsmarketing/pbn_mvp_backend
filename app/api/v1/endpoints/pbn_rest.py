@@ -4,9 +4,13 @@ UTF-8 인코딩 문제 해결을 위해 PostgreSQL 직접 연결 대신 REST API
 v1.1 - print 구문 제거 및 로그 최적화 (2025.07.15)
 """
 
+# Celery 태스크 import를 상단으로 이동 (초기화 문제 해결)
+from app.tasks.email_tasks import send_order_confirmation_email, send_welcome_email
+from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
+
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
-from pydantic import BaseModel
-from datetime import datetime
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
 import uuid
 import logging
 
@@ -403,8 +407,6 @@ async def rest_test_request(request: PbnSampleRequest):
         email_task_result = None  # 변수 초기화
 
         try:
-            from app.tasks.email_tasks import send_order_confirmation_email
-
             # 함수 시그니처에 맞게 order_details 딕셔너리로 전달
             order_details = {
                 "target_url": request.target_url,
@@ -432,8 +434,6 @@ async def rest_test_request(request: PbnSampleRequest):
         pbn_task_result = None  # 변수 초기화
 
         try:
-            from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
-
             pbn_task_result = create_pbn_backlink_rest.delay(
                 order_id=order_id,
                 target_url=request.target_url,
@@ -627,8 +627,7 @@ async def sample_request_authenticated(
         email_task_result = None
 
         try:
-            from app.tasks.email_tasks import send_order_confirmation_email
-
+            # 함수 시그니처에 맞게 order_details 딕셔너리로 전달
             order_details = {
                 "target_url": request.target_url,
                 "keyword": request.keyword,
@@ -655,8 +654,6 @@ async def sample_request_authenticated(
         pbn_task_result = None
 
         try:
-            from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
-
             pbn_task_result = create_pbn_backlink_rest.delay(
                 order_id=order_id,
                 target_url=request.target_url,

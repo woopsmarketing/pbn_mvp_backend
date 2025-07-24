@@ -33,18 +33,27 @@ def create_pbn_backlink_rest(
     pbn_site_domain: str | None = None,
 ):
     """무료 PBN 1개 생성 – LangChain 콘텐츠 생성 통합 버전"""
+    print(f"🔗 [CELERY TASK] PBN 백링크 생성 태스크 시작!")
+    print(f"📋 [CELERY TASK] 주문ID: {order_id}")
+    print(f"🎯 [CELERY TASK] 대상URL: {target_url}")
+    print(f"🔑 [CELERY TASK] 키워드: {keyword}")
+    print(f"🌐 [CELERY TASK] PBN 도메인: {pbn_site_domain}")
+
     logger.info(
         f"PBN 백링크 생성 태스크 시작: order_id={order_id}, target_url={target_url}, keyword={keyword}"
     )
 
     try:
+        print(f"📝 [CELERY TASK] 주문 상태를 processing으로 업데이트 중...")
         logger.info(f"주문 상태를 processing으로 업데이트 중... (order_id: {order_id})")
 
         # 1) 주문을 processing 상태로 업데이트
         supabase_client.update_order_status(order_id, "processing")
+        print(f"✅ [CELERY TASK] 주문 상태 업데이트 완료")
         logger.info("주문 상태 업데이트 완료")
 
         # 2) 실제 PBN 포스팅으로 바로 진행 (시뮬레이션 제거)
+        print(f"🚀 [CELERY TASK] 실제 PBN 포스팅 프로세스 시작...")
         logger.info("실제 PBN 포스팅 프로세스 시작...")
 
         # 3) PBN 사이트 선택 및 포스팅 시도 (최대 5개 사이트까지 시도)

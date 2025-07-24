@@ -46,10 +46,12 @@ def send_welcome_email(user_email: str):
     Args:
         user_email: 사용자 이메일 주소
     """
+    print(f"🎉 [CELERY TASK] 환영 이메일 태스크 시작: {user_email}")
     debug_print(f"=== 환영 이메일 태스크 시작 ===", "send_welcome_email")
     debug_print(f"수신자: {user_email}", "send_welcome_email")
 
     try:
+        print(f"📧 [CELERY TASK] EmailService 초기화 중...")
         debug_print("EmailService 초기화 중...", "send_welcome_email")
         email_service = EmailService()
 
@@ -72,6 +74,7 @@ def send_welcome_email(user_email: str):
         </div>
         """
 
+        print(f"📤 [CELERY TASK] 이메일 발송 시작...")
         debug_print("이메일 발송 시작...", "send_welcome_email")
         # 이메일 발송
         result = email_service.send_email(
@@ -79,8 +82,10 @@ def send_welcome_email(user_email: str):
             subject="[BacklinkVending] 환영합니다! 🎉",
             html_content=html_content,
         )
+        print(f"📤 [CELERY TASK] 이메일 발송 결과: {result}")
         debug_print(f"이메일 발송 결과: {result}", "send_welcome_email")
 
+        print(f"💾 [CELERY TASK] 이메일 로그 저장 시작...")
         debug_print("이메일 로그 저장 시작...", "send_welcome_email")
         # Supabase REST API로 이메일 로그 저장
         create_email_log_via_api(
@@ -93,6 +98,7 @@ def send_welcome_email(user_email: str):
             status="sent" if result.get("success") else "failed",
         )
 
+        print(f"✅ [CELERY TASK] 환영 이메일 태스크 완료 - 성공")
         debug_print(f"환영 이메일 태스크 완료 - 성공", "send_welcome_email")
         logger.info(f"Welcome email sent to {user_email}")
         return {
@@ -102,6 +108,7 @@ def send_welcome_email(user_email: str):
         }
 
     except Exception as e:
+        print(f"❌ [CELERY TASK] 환영 이메일 태스크 실패: {e}")
         debug_print(f"환영 이메일 태스크 실패: {e}", "send_welcome_email")
         logger.error(f"Failed to send welcome email: {e}")
         return {"success": False, "error": str(e)}
@@ -116,6 +123,9 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
         order_id: 주문 ID
         order_details: 주문 상세 정보
     """
+    print(
+        f"📋 [CELERY TASK] 주문 확인 이메일 태스크 시작: {user_email}, 주문ID: {order_id}"
+    )
     debug_print(
         f"=== 주문 확인 이메일 태스크 시작 ===", "send_order_confirmation_email"
     )
@@ -125,6 +135,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
     debug_print(f"주문 상세: {order_details}", "send_order_confirmation_email")
 
     try:
+        print(f"📧 [CELERY TASK] EmailService 초기화 중...")
         debug_print("EmailService 초기화 중...", "send_order_confirmation_email")
         email_service = EmailService()
 
@@ -163,6 +174,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
         </div>
         """
 
+        print(f"📤 [CELERY TASK] 이메일 발송 시작...")
         debug_print("이메일 발송 시작...", "send_order_confirmation_email")
         # 이메일 발송
         result = email_service.send_email(
@@ -170,8 +182,10 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
             subject=f"[BacklinkVending] 주문이 접수되었습니다 - {order_id}",
             html_content=html_content,
         )
+        print(f"📤 [CELERY TASK] 이메일 발송 결과: {result}")
         debug_print(f"이메일 발송 결과: {result}", "send_order_confirmation_email")
 
+        print(f"💾 [CELERY TASK] 이메일 로그 저장 시작...")
         debug_print("이메일 로그 저장 시작...", "send_order_confirmation_email")
         # Supabase REST API로 이메일 로그 저장
         create_email_log_via_api(
@@ -189,6 +203,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
             status="sent" if result.get("success") else "failed",
         )
 
+        print(f"✅ [CELERY TASK] 주문 확인 이메일 태스크 완료 - 성공")
         debug_print(
             f"주문 확인 이메일 태스크 완료 - 성공", "send_order_confirmation_email"
         )
@@ -200,6 +215,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
         }
 
     except Exception as e:
+        print(f"❌ [CELERY TASK] 주문 확인 이메일 태스크 실패: {e}")
         debug_print(
             f"주문 확인 이메일 태스크 실패: {e}", "send_order_confirmation_email"
         )
