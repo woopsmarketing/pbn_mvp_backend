@@ -39,6 +39,17 @@ celery.conf.update(
     # 브로커 설정 (올바른 환경변수 사용)
     broker_url=broker_url,
     result_backend=result_backend_url,  # 별도의 결과 백엔드 사용
+    # 🔧 클라우드 환경 최적화: 연결 설정
+    broker_connection_retry_on_startup=True,  # 시작시 연결 재시도
+    broker_connection_retry=True,  # 연결 재시도 활성화
+    broker_connection_max_retries=10,  # 최대 10회 재시도
+    broker_heartbeat=30,  # 하트비트 30초
+    broker_pool_limit=10,  # 연결 풀 제한
+    # Redis 연결 타임아웃 설정
+    redis_socket_timeout=30.0,  # Redis 소켓 타임아웃 30초
+    redis_socket_connect_timeout=30.0,  # Redis 연결 타임아웃 30초
+    redis_retry_on_timeout=True,  # 타임아웃시 재시도
+    redis_health_check_interval=10,  # 연결 상태 확인 10초마다
     # 직렬화 설정
     task_serializer="json",
     accept_content=["json"],
@@ -50,10 +61,12 @@ celery.conf.update(
     task_track_started=True,
     task_result_extended=True,
     result_extended=True,
-    # 작업자(Worker) 설정
+    # 🔧 클라우드 환경 최적화: Worker 설정
     worker_prefetch_multiplier=1,
     task_acks_late=True,
     worker_max_tasks_per_child=50,
+    worker_max_memory_per_child=200000,  # 200MB 메모리 제한
+    worker_disable_rate_limits=True,  # Rate limit 비활성화
     # 라우팅 설정
     task_routes={
         # 이메일 관련 태스크
@@ -103,15 +116,15 @@ celery.conf.update(
 )
 
 # v1.2 - Task 자동 검색 설정 (2025.07.16)
-celery.autodiscover_tasks(
-    [
-        "app.tasks.email_tasks",
-        "app.tasks.pbn_tasks",
-        "app.tasks.report_tasks",
-        "app.tasks.scheduled_tasks",
-        "app.tasks.pbn_rest_tasks",
-    ]
-)
+# celery.autodiscover_tasks(
+#     [
+#         "app.tasks.email_tasks",
+#         "app.tasks.pbn_tasks",
+#         "app.tasks.report_tasks",
+#         "app.tasks.scheduled_tasks",
+#         "app.tasks.pbn_rest_tasks",
+#     ]
+# )
 
 
 # v1.3 - Celery 상태 모니터링 (2025.01.08)
@@ -177,3 +190,39 @@ def task_failure_handler(sender=None, task_id=None, exception=None, einfo=None, 
 print("BacklinkVending Celery application configured successfully")
 print(f"Broker URL: {broker_url}")
 print(f"Worker queues: default, email, pbn, reports")
+
+# 🔧 명시적 태스크 모듈 자동 검색 설정
+try:
+    print("🔍 [Celery] 태스크 모듈 자동 검색 시작...")
+    celery.autodiscover_tasks(
+        [
+            "app.tasks.email_tasks",
+            "app.tasks.pbn_rest_tasks",
+            "app.tasks.pbn_tasks",
+            "app.tasks.report_tasks",
+            "app.tasks.scheduled_tasks",
+        ]
+    )
+    print("✅ [Celery] 태스크 모듈 자동 검색 완료")
+except Exception as e:
+    print(f"❌ [Celery] 태스크 모듈 검색 실패: {e}")
+    # 실패해도 Worker가 시작되도록 함
+
+# 🔧 Worker 연결 상태 확인용 시그널 추가
+from celery.signals import worker_ready, worker_shutdown
+
+
+@worker_ready.connect
+def worker_ready_handler(sender=None, **kwargs):
+    """Worker가 준비되었을 때"""
+    print("🎉 [Celery Worker] 완전히 시작됨 - 태스크 수신 준비 완료!")
+    print(f"   Worker Name: {sender.hostname}")
+
+
+@worker_shutdown.connect
+def worker_shutdown_handler(sender=None, **kwargs):
+    """Worker가 종료될 때"""
+    print("👋 [Celery Worker] 종료됨")
+
+
+print("🚀 [Celery] 초기화 완료 - Worker 시작 대기 중...")

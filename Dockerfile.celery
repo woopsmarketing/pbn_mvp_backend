@@ -9,5 +9,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Cloudtype에서는 CMD를 동적으로 지정할 수 있으나, 기본값은 Celery 워커로 설정
-CMD ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info"] 
+# 🔧 클라우드 환경 최적화된 Celery Worker 시작 명령어
+# - concurrency=1: 컨테이너 환경에서 단일 프로세스 사용
+# - queues: 모든 큐 처리 (default,email,pbn,reports)
+# - loglevel=debug: 상세한 로그 출력으로 문제 진단
+# - without-gossip: 분산 환경에서 불필요한 gossip 비활성화
+# - without-mingle: Worker간 동기화 비활성화 (단일 Worker시)
+# - pool=solo: 단일 스레드 pool 사용 (안정성 향상)
+CMD ["celery", "-A", "app.tasks.celery_app", "worker", \
+     "--loglevel=debug", \
+     "--concurrency=1", \
+     "--queues=default,email,pbn,reports", \
+     "--without-gossip", \
+     "--without-mingle", \
+     "--pool=solo"] 

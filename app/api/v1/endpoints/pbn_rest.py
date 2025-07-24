@@ -893,18 +893,43 @@ async def test_celery_tasks():
     print(f"🧪 [DEBUG] Celery 태스크 테스트 시작")
 
     try:
-        # 이메일 태스크 임포트 확인
-        from app.tasks.email_tasks import send_welcome_email
-        from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
-        from app.tasks.celery_app import debug_task
+        # 이메일 태스크 임포트 확인 (함수 내부에서 import)
+        print(f"📦 [DEBUG] 태스크 모듈 import 시도...")
 
-        print(f"✅ [DEBUG] 태스크 임포트 성공")
+        # 안전한 import - 함수 내부에서만 import
+        try:
+            from app.tasks.email_tasks import send_welcome_email
+
+            print(f"✅ [DEBUG] email_tasks 모듈 import 성공")
+        except Exception as e:
+            print(f"❌ [DEBUG] email_tasks import 실패: {e}")
+            return {"success": False, "error": f"email_tasks import 실패: {e}"}
+
+        try:
+            from app.tasks.pbn_rest_tasks import create_pbn_backlink_rest
+
+            print(f"✅ [DEBUG] pbn_rest_tasks 모듈 import 성공")
+        except Exception as e:
+            print(f"❌ [DEBUG] pbn_rest_tasks import 실패: {e}")
+            return {"success": False, "error": f"pbn_rest_tasks import 실패: {e}"}
+
+        try:
+            from app.tasks.celery_app import debug_task
+
+            print(f"✅ [DEBUG] celery_app debug_task import 성공")
+        except Exception as e:
+            print(f"❌ [DEBUG] debug_task import 실패: {e}")
+            return {"success": False, "error": f"debug_task import 실패: {e}"}
+
+        print(f"✅ [DEBUG] 모든 태스크 import 성공")
 
         # 간단한 디버그 태스크 호출
+        print(f"🔍 [DEBUG] debug_task 호출 시도...")
         debug_result = debug_task.delay()
         print(f"🔍 [DEBUG] debug_task 호출 완료 - ID: {debug_result.id}")
 
         # 환영 이메일 태스크 테스트 (테스트 이메일로)
+        print(f"📧 [DEBUG] welcome_email 태스크 호출 시도...")
         welcome_result = send_welcome_email.delay("test@backlinkvending.com")
         print(f"📧 [DEBUG] welcome_email 태스크 호출 완료 - ID: {welcome_result.id}")
 
@@ -917,5 +942,5 @@ async def test_celery_tasks():
         }
 
     except Exception as e:
-        print(f"❌ [DEBUG] Celery 태스크 테스트 실패: {e}")
+        print(f"❌ [DEBUG] Celery 태스크 테스트 전체 실패: {e}")
         return {"success": False, "error": str(e), "message": "Celery 태스크 연결 실패"}
