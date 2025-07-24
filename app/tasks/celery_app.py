@@ -1,9 +1,9 @@
 """
-Celery ?�플리�??�션 ?�정 �?구성
-- Redis�?브로�?�?결과 백엔?�로 ?�용
-- Windows ?�환?�을 ?�한 ?�정 ?�함
-- ?�업 결과 추적 �?모니?�링 ?�정
-- v1.3 - ?�업 결과 추적 �??�류 처리 강화 (2025.01.08)
+Celery 애플리케이션 설정 및 구성
+- Redis를 브로커 및 결과 백엔드로 사용
+- Windows 환경을 위한 설정 포함
+- 작업 결과 추적 및 모니터링 설정
+- v1.3 - 작업 결과 추적 및 오류 처리 강화 (2025.01.08)
 """
 
 import os
@@ -13,163 +13,160 @@ from celery.schedules import crontab
 from dotenv import load_dotenv
 from kombu import Exchange, Queue
 
-# Celery ???�성 (celery_worker.py?� ?�일???�름 ?�용)
+# Celery 인스턴스 생성 (celery_worker.py와 동일한 이름 사용)
 celery = Celery("backlinkvending")
 
-# v1.1 - Celery ?�커 Task 모듈 명시??import (2025.07.15)
-# celery ?�스?�스 ?�성 ?�후?�만 import (?�환 참조 방�?)
-import app.tasks.email_tasks  # ?�메??관???�스???�록
-import app.tasks.pbn_rest_tasks  # REST PBN ?�스???�록
+# v1.1 - Celery 워커 Task 모듈 명시적 import (2025.07.15)
+# celery 인스턴스 생성 이후에만 import (순환 참조 방지)
+from app.core.config import settings
 
-# ?�경변??로드
+# 환경 변수 로드
 load_dotenv()
 
-# ?�수 Supabase ?�경변??존재 ?��? 검�?
-required_env = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"]
-missing = [e for e in required_env if not os.getenv(e)]
+# Windows 환경에서 pickle 직렬화 문제 해결
+if sys.platform == "win32":
+    os.environ.setdefault("FORKED_BY_MULTIPROCESSING", "1")
 
-if missing:
-    missing_str = ", ".join(missing)
-    print(f"[Celery App] ?�️ .env???�음 Supabase 변?��? ?�습?�다: {missing_str}")
-    print("?��? 기능???�한?????�습?�다.")
+# Redis 설정
+redis_url = settings.CELERY_BROKER_URL or "redis://localhost:6379/0"
 
-# Redis URL ?�정
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-
-# ?�경변?�에??Redis URL 가?�오�?(Docker ?�경 고려)
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
-
-# ?�제 ?�용??브로�?백엔??주소�?명확?�게 로그�?출력 (?�경변???�용 진단)
-print("[Celery ?�경] CELERY_BROKER_URL:", CELERY_BROKER_URL)
-print("[Celery ?�경] CELERY_RESULT_BACKEND:", CELERY_RESULT_BACKEND)
-
-# Celery ???�성 (celery_worker.py?� ?�일???�름 ?�용)
-# Celery Beat ?��?�??�정
-beat_schedule = {
-    # 매일 ?�벽 2?�에 PBN ?�이???�태 체크
-    "daily-pbn-health-check": {
-        "task": "check_pbn_sites_health",
-        "schedule": crontab(hour=2, minute=0),
-    },
-    # 매일 ?�벽 3?�에 ?�료???�업 ?�리
-    "daily-cleanup-completed-tasks": {
-        "task": "cleanup_completed_tasks",
-        "schedule": crontab(hour=3, minute=0),
-    },
-    # 매일 ?�벽 4?�에 ?�간 보고???�성
-    "daily-report-generation": {
-        "task": "generate_daily_report",
-        "schedule": crontab(hour=4, minute=0),
-    },
-    # 매주 ?�요???�벽 5?�에 주간 보고???�성
-    "weekly-report-generation": {
-        "task": "generate_weekly_report",
-        "schedule": crontab(hour=5, minute=0, day_of_week=1),
-    },
-    # 매월 1???�벽 6?�에 ?�간 보고???�성
-    "monthly-report-generation": {
-        "task": "generate_monthly_report",
-        "schedule": crontab(hour=6, minute=0, day_of_month=1),
-    },
-    # �?30분마???�패???�메???�시??
-    "retry-failed-emails": {
-        "task": "retry_failed_emails",
-        "schedule": crontab(minute="*/30"),
-    },
-    # �?15분마???�스???�스체크
-    "system-health-check": {
-        "task": "system_health_check",
-        "schedule": crontab(minute="*/15"),
-    },
-    # 매일 ?�정??로그 ?�리
-    "daily-log-cleanup": {
-        "task": "cleanup_old_logs",
-        "schedule": crontab(hour=0, minute=0),
-    },
-}
-
-# Celery ?�정
+# Celery 구성
 celery.conf.update(
-    # 브로�?�?결과 백엔???�정
-    broker_url=CELERY_BROKER_URL,
-    result_backend=CELERY_RESULT_BACKEND,
-    # ???�정 - default ??명시??추�?
-    task_default_queue="default",
-    task_default_exchange="default",
-    task_default_exchange_type="direct",
-    task_default_routing_key="default",
-    # ???�의
-    task_queues=(
-        Queue("default", Exchange("default"), routing_key="default"),
-        Queue("celery", Exchange("celery"), routing_key="celery"),
-    ),
-    # ?�우???�정
-    task_routes={
-        "app.tasks.email_tasks.*": {"queue": "default"},
-        "app.tasks.pbn_rest_tasks.*": {"queue": "default"},
-        "app.tasks.pbn_tasks.*": {"queue": "default"},
-        "app.tasks.report_tasks.*": {"queue": "default"},
-        "app.tasks.scheduled_tasks.*": {"queue": "default"},
-    },
-    # Windows ?�환?�을 ?�한 ?�정
-    worker_pool="solo",
-    worker_concurrency=1,
-    # 직렬???�정 (보안 �??�환??
+    # 브로커 설정
+    broker_url=redis_url,
+    result_backend=redis_url,
+    # 직렬화 설정
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-    # ?�업 결과 추적 ?�정
-    result_expires=3600 * 24 * 7,  # 결과�?7?�간 보�?
-    result_persistent=True,  # 결과�??�구 ?�??
-    task_track_started=True,  # ?�업 ?�작 추적
-    task_send_sent_event=True,  # ?�업 ?�송 ?�벤??추적
-    # ?�업 ?�행 추적 ?�정
-    worker_send_task_events=True,  # ?�커 ?�벤???�송
-    # ?�?�존 ?�정
     timezone="Asia/Seoul",
     enable_utc=True,
-    # ?�업 ?�시???�정
-    task_annotations={
-        "*": {
-            "rate_limit": "10/s",
-            "max_retries": 3,
-            "default_retry_delay": 60,
-        }
+    # 작업 결과 설정
+    result_expires=3600,  # 1시간 후 결과 만료
+    task_track_started=True,
+    task_result_extended=True,
+    result_extended=True,
+    # 작업자(Worker) 설정
+    worker_prefetch_multiplier=1,
+    task_acks_late=True,
+    worker_max_tasks_per_child=50,
+    # 라우팅 설정
+    task_routes={
+        # 이메일 관련 태스크
+        "app.tasks.email_tasks.*": {"queue": "email"},
+        # PBN 관련 태스크
+        "app.tasks.pbn_tasks.*": {"queue": "pbn"},
+        # 보고서 관련 태스크
+        "app.tasks.report_tasks.*": {"queue": "reports"},
+        # 기본 태스크
+        "*": {"queue": "default"},
     },
-    # ?�류 처리 ?�정
-    task_reject_on_worker_lost=True,  # ?�커 ?�실 ???�업 거�?
-    task_acks_late=True,  # ?�업 ?�료 ??ACK
-    worker_prefetch_multiplier=1,  # ??번에 ?�나??처리
-    # 모니?�링 ?�정
+    # 큐 설정
+    task_default_queue="default",
+    task_queues=(
+        Queue("default", Exchange("default"), routing_key="default"),
+        Queue("email", Exchange("email"), routing_key="email"),
+        Queue("pbn", Exchange("pbn"), routing_key="pbn"),
+        Queue("reports", Exchange("reports"), routing_key="reports"),
+    ),
+    # 스케줄 작업 설정 (Beat)
+    beat_schedule={
+        "daily-report": {
+            "task": "app.tasks.report_tasks.generate_daily_report",
+            "schedule": crontab(hour=9, minute=0),  # 매일 오전 9시
+        },
+        "cleanup-old-logs": {
+            "task": "app.tasks.scheduled_tasks.cleanup_old_email_logs",
+            "schedule": crontab(hour=2, minute=0),  # 매일 새벽 2시
+        },
+        "check-pbn-status": {
+            "task": "app.tasks.scheduled_tasks.check_pbn_site_status",
+            "schedule": crontab(minute="*/30"),  # 30분마다
+        },
+    },
+    # 에러 처리 설정
+    task_reject_on_worker_lost=True,
+    task_ignore_result=False,
+    # 로깅 설정
     worker_log_format="[%(asctime)s: %(levelname)s/%(processName)s] %(message)s",
     worker_task_log_format="[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s",
-    # ?�업 ?�동 발견 ?�정
-    include=["app.tasks.scheduled_tasks"],
+    # 보안 설정
+    worker_hijack_root_logger=False,
+    worker_redirect_stdouts=False,
 )
 
-# ?�스???�동 발견
+# v1.2 - Task 자동 검색 설정 (2025.07.16)
 celery.autodiscover_tasks(
     [
-        "app.tasks.pbn_tasks",
-        "app.tasks.pbn_rest_tasks",
         "app.tasks.email_tasks",
+        "app.tasks.pbn_tasks",
         "app.tasks.report_tasks",
-        "app.tasks.scheduled_tasks",  # ?�로 추�????�약 ?�업 모듈
+        "app.tasks.scheduled_tasks",
+        "app.tasks.pbn_rest_tasks",
     ]
 )
 
 
-# ?�스체크??기본 ?�업
-@celery.task(bind=True, name="health_check")
-def health_check(self):
-    """?�스???�스체크 ?�업"""
-    try:
-        return {
-            "status": "healthy",
-            "task_id": self.request.id,
-            "worker": self.request.hostname,
-            "timestamp": str(self.request.timestamp),
-        }
-    except Exception as exc:
-        self.retry(exc=exc, countdown=60, max_retries=3)
+# v1.3 - Celery 상태 모니터링 (2025.01.08)
+@celery.task(bind=True)
+def debug_task(self):
+    """디버그용 태스크"""
+    print(f"Request: {self.request!r}")
+    return f"Task executed successfully: {self.request.id}"
+
+
+# v1.3 - 에러 핸들러 (2025.01.08)
+@celery.task(bind=True)
+def error_handler(self, uuid, err, traceback):
+    """에러 처리 태스크"""
+    print(f"Task {uuid} raised exception: {err}\n{traceback}")
+
+
+# 컨테이너 환경에서의 Celery 연결 테스트
+@celery.task
+def health_check():
+    """Celery 상태 확인용 태스크"""
+    return {
+        "status": "healthy",
+        "message": "BacklinkVending Celery worker is running",
+        "timestamp": str(os.environ.get("CURRENT_TIME", "unknown")),
+    }
+
+
+# v1.3 - Celery 시그널 핸들러 (2025.01.08)
+from celery.signals import task_prerun, task_postrun, task_failure
+
+
+@task_prerun.connect
+def task_prerun_handler(
+    sender=None, task_id=None, task=None, args=None, kwargs=None, **kwds
+):
+    """태스크 실행 전 로깅"""
+    print(f"Task {task_id} started: {task.name}")
+
+
+@task_postrun.connect
+def task_postrun_handler(
+    sender=None,
+    task_id=None,
+    task=None,
+    args=None,
+    kwargs=None,
+    retval=None,
+    state=None,
+    **kwds,
+):
+    """태스크 실행 후 로깅"""
+    print(f"Task {task_id} finished: {task.name} - State: {state}")
+
+
+@task_failure.connect
+def task_failure_handler(sender=None, task_id=None, exception=None, einfo=None, **kwds):
+    """태스크 실패 시 로깅"""
+    print(f"Task {task_id} failed: {exception}")
+
+
+# Celery 워커 시작 시 로그
+print("BacklinkVending Celery application configured successfully")
+print(f"Broker URL: {redis_url}")
+print(f"Worker queues: default, email, pbn, reports")
