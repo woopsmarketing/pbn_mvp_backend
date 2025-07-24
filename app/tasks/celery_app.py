@@ -105,7 +105,7 @@ celery.conf.update(
             "task": "app.tasks.scheduled_tasks.cleanup_old_email_logs",
             "schedule": crontab(hour=2, minute=0),  # 매일 새벽 2시
         },
-        "check-pbn-status":
+        "check-pbn-status": {
             "task": "app.tasks.scheduled_tasks.check_pbn_site_status",
             "schedule": crontab(minute="*/30"),  # 30분마다
         },
