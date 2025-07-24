@@ -140,6 +140,56 @@ def create_order_via_rest(order_data):
         return None
 
 
+def check_user_free_pbn_usage(clerk_id):
+    """사용자의 무료 PBN 사용 이력 확인"""
+    supabase = get_supabase_client()
+
+    headers = {
+        "apikey": supabase["service_role_key"],
+        "Authorization": f"Bearer {supabase['service_role_key']}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        # 1. 사용자 ID 조회
+        user = get_user_via_rest(clerk_id)
+        if not user:
+            return {"has_used": False, "user_exists": False}
+
+        user_id = user["id"]
+
+        # 2. 해당 사용자의 무료 PBN 주문 내역 확인
+        url = f"{supabase['url']}/rest/v1/orders?user_id=eq.{user_id}&type=eq.free_pbn"
+
+        response = requests.get(url, headers=headers)
+        logger.info(f"무료 PBN 사용 이력 조회: status={response.status_code}")
+
+        if response.status_code == 200:
+            orders = response.json()
+
+            # 3. 완료되었거나 진행 중인 주문이 있는지 확인
+            active_orders = [
+                order
+                for order in orders
+                if order["status"] in ["pending", "processing", "completed"]
+            ]
+
+            return {
+                "has_used": len(active_orders) > 0,
+                "user_exists": True,
+                "total_free_orders": len(orders),
+                "active_orders": len(active_orders),
+                "orders": active_orders[:3],  # 최근 3개만 반환
+            }
+        else:
+            logger.error(f"주문 조회 실패: {response.status_code} - {response.text}")
+            return {"has_used": False, "user_exists": True, "error": "조회 실패"}
+
+    except Exception as e:
+        logger.error(f"무료 PBN 사용 이력 확인 중 오류: {e}")
+        return {"has_used": False, "user_exists": True, "error": str(e)}
+
+
 def get_user_via_rest(clerk_id):
     """REST API를 통한 사용자 조회"""
     supabase = get_supabase_client()
@@ -238,8 +288,31 @@ async def rest_test_request(request: PbnSampleRequest):
             logger.warning("활성 PBN 사이트 없음")
             raise HTTPException(status_code=503, detail="No active PBN sites available")
 
-        # 2. 테스트 사용자 조회 또는 생성
+        # 2. 테스트 사용자 무료 PBN 사용 이력 확인 (테스트용도 1회 제한)
         test_clerk_id = "test_user_123"
+
+        usage_check = check_user_free_pbn_usage(test_clerk_id)
+
+        if usage_check["has_used"]:
+            logger.warning(f"테스트 사용자도 이미 무료 PBN을 사용했습니다")
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "테스트 계정도 이미 무료 PBN 백링크 서비스를 사용했습니다. 한 계정당 1회만 이용 가능합니다.",
+                    "code": "FREE_PBN_ALREADY_USED",
+                    "note": "테스트용 계정도 동일한 제한이 적용됩니다",
+                    "usage_info": {
+                        "total_orders": usage_check.get("total_free_orders", 0),
+                        "active_orders": usage_check.get("active_orders", 0),
+                    },
+                },
+            )
+
+        logger.info(
+            f"테스트 사용자 무료 PBN 사용 가능 확인: 총 {usage_check.get('total_free_orders', 0)}회 사용 이력"
+        )
+
+        # 3. 테스트 사용자 조회 또는 생성
         user = get_user_via_rest(test_clerk_id)
 
         if user:
@@ -257,7 +330,7 @@ async def rest_test_request(request: PbnSampleRequest):
         if not user:
             raise HTTPException(status_code=500, detail="Failed to create/get user")
 
-        # 3. 주문 생성 (테이블 스키마에 맞게 수정)
+        # 4. 주문 생성 (테이블 스키마에 맞게 수정)
         order_data = {
             "id": str(uuid.uuid4()),
             "user_id": user["id"],
@@ -285,7 +358,7 @@ async def rest_test_request(request: PbnSampleRequest):
 
         order_id = order["id"]
 
-        # 4. 이메일 확인 태스크 등록
+        # 5. 이메일 확인 태스크 등록
         logger.info("이메일 태스크 등록 시도")
         email_task_result = None  # 변수 초기화
 
@@ -314,7 +387,7 @@ async def rest_test_request(request: PbnSampleRequest):
         except Exception as e:
             logger.warning(f"이메일 태스크 등록 실패: {e}")
 
-        # 5. PBN 백링크 생성 태스크 등록
+        # 6. PBN 백링크 생성 태스크 등록
         logger.info("PBN 태스크 등록 시도")
         pbn_task_result = None  # 변수 초기화
 
@@ -400,7 +473,28 @@ async def sample_request_authenticated(
 
         logger.info(f"실제 사용자: {user_email} (clerk_id: {clerk_id})")
 
-        # 3. 사용자 조회 또는 생성
+        # 3. 무료 PBN 사용 이력 확인 (한 계정당 1회 제한)
+        usage_check = check_user_free_pbn_usage(clerk_id)
+
+        if usage_check["has_used"]:
+            logger.warning(f"사용자 {clerk_id}는 이미 무료 PBN을 사용했습니다")
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "이미 무료 PBN 백링크 서비스를 사용하셨습니다. 한 계정당 1회만 이용 가능합니다.",
+                    "code": "FREE_PBN_ALREADY_USED",
+                    "usage_info": {
+                        "total_orders": usage_check.get("total_free_orders", 0),
+                        "active_orders": usage_check.get("active_orders", 0),
+                    },
+                },
+            )
+
+        logger.info(
+            f"무료 PBN 사용 가능 확인: 총 {usage_check.get('total_free_orders', 0)}회 사용 이력"
+        )
+
+        # 4. 사용자 조회 또는 생성
         user = get_user_via_rest(clerk_id)
 
         if user:
@@ -418,7 +512,7 @@ async def sample_request_authenticated(
         if not user:
             raise HTTPException(status_code=500, detail="Failed to create/get user")
 
-        # 4. 주문 생성
+        # 5. 주문 생성
         order_data = {
             "id": str(uuid.uuid4()),
             "user_id": user["id"],
@@ -446,7 +540,7 @@ async def sample_request_authenticated(
 
         order_id = order["id"]
 
-        # 5. 이메일 확인 태스크 등록
+        # 6. 이메일 확인 태스크 등록
         logger.info("이메일 태스크 등록 시도")
         email_task_result = None
 
@@ -474,7 +568,7 @@ async def sample_request_authenticated(
         except Exception as e:
             logger.warning(f"이메일 태스크 등록 실패: {e}")
 
-        # 6. PBN 백링크 생성 태스크 등록
+        # 7. PBN 백링크 생성 태스크 등록
         logger.info("PBN 태스크 등록 시도")
         pbn_task_result = None
 
@@ -513,6 +607,144 @@ async def sample_request_authenticated(
     except Exception as e:
         logger.error(f"인증 엔드포인트에서 예외 발생: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# 사용자 무료 PBN 사용 이력 확인 엔드포인트
+@router.get("/pbn/check-free-usage")
+async def check_free_pbn_usage(current_user: dict = Depends(get_current_clerk_user)):
+    """
+    현재 사용자의 무료 PBN 백링크 사용 이력 확인
+    - 사용자가 무료 서비스를 이미 사용했는지 확인
+    - 기존 주문 내역 제공
+    """
+    try:
+        clerk_id = current_user.get("sub")
+        if not clerk_id:
+            raise HTTPException(status_code=400, detail="Clerk ID가 토큰에 없습니다")
+
+        logger.info(f"무료 PBN 사용 이력 확인 요청: clerk_id={clerk_id}")
+
+        usage_check = check_user_free_pbn_usage(clerk_id)
+
+        return {
+            "success": True,
+            "can_use_free_pbn": not usage_check["has_used"],
+            "has_used_before": usage_check["has_used"],
+            "user_exists": usage_check["user_exists"],
+            "usage_statistics": {
+                "total_free_orders": usage_check.get("total_free_orders", 0),
+                "active_orders": usage_check.get("active_orders", 0),
+                "recent_orders": usage_check.get("orders", []),
+            },
+            "message": (
+                "무료 PBN 백링크 서비스를 이용할 수 있습니다."
+                if not usage_check["has_used"]
+                else "이미 무료 PBN 백링크 서비스를 사용하셨습니다. 추가 이용을 원하시면 유료 서비스를 이용해주세요."
+            ),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"무료 PBN 사용 이력 확인 실패: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"사용 이력 확인 중 오류가 발생했습니다: {str(e)}"
+        )
+
+
+# 관리자용: 사용자 무료 PBN 제한 해제 엔드포인트
+@router.post("/pbn/admin/reset-free-usage/{clerk_id}")
+async def reset_user_free_pbn_usage(
+    clerk_id: str,
+    reason: str = "관리자 요청",
+    current_user: dict = Depends(get_current_clerk_user),
+):
+    """
+    관리자용: 특정 사용자의 무료 PBN 사용 제한을 해제
+    - 기존 무료 PBN 주문을 취소 상태로 변경
+    - 사용자가 다시 무료 서비스를 이용할 수 있게 함
+    """
+    try:
+        # 관리자 권한 확인 (간단한 이메일 체크)
+        admin_email = current_user.get("email", "")
+        if admin_email != "vnfm0580@gmail.com":  # 실제 관리자 이메일로 변경
+            raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다")
+
+        logger.info(
+            f"관리자 {admin_email}가 사용자 {clerk_id}의 무료 PBN 제한 해제 시도"
+        )
+
+        supabase = get_supabase_client()
+
+        # 1. 사용자 확인
+        user = get_user_via_rest(clerk_id)
+        if not user:
+            raise HTTPException(
+                status_code=404, detail=f"사용자를 찾을 수 없습니다: {clerk_id}"
+            )
+
+        user_id = user["id"]
+
+        # 2. 기존 무료 PBN 주문들을 취소 상태로 변경
+        headers = {
+            "apikey": supabase["service_role_key"],
+            "Authorization": f"Bearer {supabase['service_role_key']}",
+            "Content-Type": "application/json",
+        }
+
+        # 무료 PBN 주문 조회
+        url = f"{supabase['url']}/rest/v1/orders?user_id=eq.{user_id}&type=eq.free_pbn"
+        response = requests.get(url, headers=headers)
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="기존 주문 조회 실패")
+
+        orders = response.json()
+        cancelled_orders = []
+
+        # 3. 활성 주문들을 취소 상태로 변경
+        for order in orders:
+            if order["status"] in ["pending", "processing", "completed"]:
+                order_id = order["id"]
+
+                # 주문 상태를 cancelled로 변경
+                update_data = {
+                    "status": "cancelled",
+                    "updated_at": datetime.now().isoformat(),
+                    "order_metadata": {
+                        **order.get("order_metadata", {}),
+                        "cancelled_reason": f"관리자 제한 해제: {reason}",
+                        "cancelled_by": admin_email,
+                        "cancelled_at": datetime.now().isoformat(),
+                    },
+                }
+
+                update_url = f"{supabase['url']}/rest/v1/orders?id=eq.{order_id}"
+                update_response = requests.patch(
+                    update_url, json=update_data, headers=headers
+                )
+
+                if update_response.status_code == 200:
+                    cancelled_orders.append(order_id)
+                    logger.info(f"주문 {order_id} 취소 완료")
+
+        return {
+            "success": True,
+            "message": f"사용자 {clerk_id}의 무료 PBN 제한이 해제되었습니다",
+            "cancelled_orders": cancelled_orders,
+            "cancelled_count": len(cancelled_orders),
+            "reason": reason,
+            "reset_by": admin_email,
+            "reset_at": datetime.now().isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"무료 PBN 제한 해제 실패: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"제한 해제 중 오류가 발생했습니다: {str(e)}"
+        )
 
 
 # 테스트용 별칭 엔드포인트 (개발 전용)

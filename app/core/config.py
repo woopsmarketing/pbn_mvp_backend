@@ -5,7 +5,7 @@ from typing import Optional
 class Settings(BaseSettings):
     # Resend
     RESEND_API_KEY: Optional[str] = None
-    EMAIL_FROM: Optional[str] = "onboarding@resend.dev"
+    EMAIL_FROM: Optional[str] = "noreply@backlinkvending.com"
 
     # Project
     PROJECT_NAME: str = "API_followsales"
