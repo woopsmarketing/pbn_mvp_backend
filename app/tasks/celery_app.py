@@ -27,14 +27,18 @@ load_dotenv()
 if sys.platform == "win32":
     os.environ.setdefault("FORKED_BY_MULTIPROCESSING", "1")
 
-# Redis 설정
-redis_url = settings.CELERY_BROKER_URL or "redis://localhost:6379/0"
+# Redis 설정 - 브로커와 결과 백엔드 분리
+broker_url = settings.CELERY_BROKER_URL or "redis://localhost:6379/0"
+result_backend_url = settings.CELERY_RESULT_BACKEND or "redis://localhost:6379/1"
+
+print(f"🔗 [Celery 설정] 브로커 URL: {broker_url}")
+print(f"📊 [Celery 설정] 결과 백엔드 URL: {result_backend_url}")
 
 # Celery 구성
 celery.conf.update(
-    # 브로커 설정
-    broker_url=redis_url,
-    result_backend=redis_url,
+    # 브로커 설정 (올바른 환경변수 사용)
+    broker_url=broker_url,
+    result_backend=result_backend_url,  # 별도의 결과 백엔드 사용
     # 직렬화 설정
     task_serializer="json",
     accept_content=["json"],
@@ -87,12 +91,14 @@ celery.conf.update(
     # 에러 처리 설정
     task_reject_on_worker_lost=True,
     task_ignore_result=False,
-    # 로깅 설정
+    # 로깅 설정 (더 상세한 로그 출력)
     worker_log_format="[%(asctime)s: %(levelname)s/%(processName)s] %(message)s",
     worker_task_log_format="[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s",
+    worker_send_task_events=True,  # 태스크 이벤트 전송 활성화
+    task_send_sent_event=True,  # 태스크 전송 이벤트 활성화
     # 보안 설정
     worker_hijack_root_logger=False,
-    worker_redirect_stdouts=False,
+    worker_redirect_stdouts=True,  # stdout을 로그로 리다이렉트
 )
 
 # v1.2 - Task 자동 검색 설정 (2025.07.16)
@@ -168,5 +174,5 @@ def task_failure_handler(sender=None, task_id=None, exception=None, einfo=None, 
 
 # Celery 워커 시작 시 로그
 print("BacklinkVending Celery application configured successfully")
-print(f"Broker URL: {redis_url}")
+print(f"Broker URL: {broker_url}")
 print(f"Worker queues: default, email, pbn, reports")

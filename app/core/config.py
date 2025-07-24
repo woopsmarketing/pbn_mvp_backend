@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     # Project
     PROJECT_NAME: str = "BacklinkVending API"
 
-    # Celery
+    # Celery - 브로커와 결과 백엔드 분리
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://localhost:6379/1"  # 결과 백엔드는 DB 1 사용
 
     # Redis
     REDIS_HOST: str = "localhost"
