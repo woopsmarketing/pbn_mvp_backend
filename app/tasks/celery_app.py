@@ -67,6 +67,14 @@ celery.conf.update(
     worker_max_tasks_per_child=50,
     worker_max_memory_per_child=200000,  # 200MB 메모리 제한
     worker_disable_rate_limits=True,  # Rate limit 비활성화
+    # 🎨 로깅 설정 (간소화된 포맷)
+    worker_log_format="[%(levelname)s] %(message)s",
+    worker_task_log_format="[TASK] %(task_name)s - %(message)s",
+    worker_send_task_events=True,  # 태스크 이벤트 전송 활성화
+    task_send_sent_event=True,  # 태스크 전송 이벤트 활성화
+    # 보안 설정
+    worker_hijack_root_logger=False,
+    worker_redirect_stdouts=False,  # stdout 리다이렉트 비활성화 (로그 정리)
     # 라우팅 설정
     task_routes={
         # 이메일 관련 태스크
@@ -97,7 +105,7 @@ celery.conf.update(
             "task": "app.tasks.scheduled_tasks.cleanup_old_email_logs",
             "schedule": crontab(hour=2, minute=0),  # 매일 새벽 2시
         },
-        "check-pbn-status": {
+        "check-pbn-status":
             "task": "app.tasks.scheduled_tasks.check_pbn_site_status",
             "schedule": crontab(minute="*/30"),  # 30분마다
         },
@@ -106,13 +114,13 @@ celery.conf.update(
     task_reject_on_worker_lost=True,
     task_ignore_result=False,
     # 로깅 설정 (더 상세한 로그 출력)
-    worker_log_format="[%(asctime)s: %(levelname)s/%(processName)s] %(message)s",
-    worker_task_log_format="[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s",
-    worker_send_task_events=True,  # 태스크 이벤트 전송 활성화
-    task_send_sent_event=True,  # 태스크 전송 이벤트 활성화
+    # worker_log_format="[%(asctime)s: %(levelname)s/%(processName)s] %(message)s",
+    # worker_task_log_format="[%(asctime)s: %(levelname)s/%(processName)s][%(task_name)s(%(task_id)s)] %(message)s",
+    # worker_send_task_events=True,  # 태스크 이벤트 전송 활성화
+    # task_send_sent_event=True,  # 태스크 전송 이벤트 활성화
     # 보안 설정
-    worker_hijack_root_logger=False,
-    worker_redirect_stdouts=True,  # stdout을 로그로 리다이렉트
+    # worker_hijack_root_logger=False,
+    # worker_redirect_stdouts=True,  # stdout을 로그로 리다이렉트
 )
 
 # v1.2 - Task 자동 검색 설정 (2025.07.16)
@@ -162,7 +170,8 @@ def task_prerun_handler(
     sender=None, task_id=None, task=None, args=None, kwargs=None, **kwds
 ):
     """태스크 실행 전 로깅"""
-    print(f"Task {task_id} started: {task.name}")
+    task_name = task.name.split(".")[-1] if task else "unknown"
+    print(f"▶️  [TASK] {task_name} 시작")
 
 
 @task_postrun.connect
@@ -177,23 +186,44 @@ def task_postrun_handler(
     **kwds,
 ):
     """태스크 실행 후 로깅"""
-    print(f"Task {task_id} finished: {task.name} - State: {state}")
+    task_name = task.name.split(".")[-1] if task else "unknown"
+    if state == "SUCCESS":
+        print(f"✅ [TASK] {task_name} 완료")
+    else:
+        print(f"⚠️  [TASK] {task_name} 상태: {state}")
 
 
 @task_failure.connect
 def task_failure_handler(sender=None, task_id=None, exception=None, einfo=None, **kwds):
     """태스크 실패 시 로깅"""
-    print(f"Task {task_id} failed: {exception}")
+    task_name = sender.name.split(".")[-1] if sender else "unknown"
+    print(f"❌ [TASK] {task_name} 실패: {exception}")
 
 
-# Celery 워커 시작 시 로그
-print("BacklinkVending Celery application configured successfully")
-print(f"Broker URL: {broker_url}")
-print(f"Worker queues: default, email, pbn, reports")
+# 🔧 Worker 연결 상태 확인용 시그널 추가
+from celery.signals import worker_ready, worker_shutdown
 
-# 🔧 명시적 태스크 모듈 자동 검색 설정
+
+@worker_ready.connect
+def worker_ready_handler(sender=None, **kwargs):
+    """Worker가 준비되었을 때"""
+    print("🎉 [WORKER] 준비 완료 - 태스크 수신 가능!")
+    print(f"   └─ Worker: {sender.hostname}")
+
+
+@worker_shutdown.connect
+def worker_shutdown_handler(sender=None, **kwargs):
+    """Worker가 종료될 때"""
+    print("👋 [WORKER] 종료됨")
+
+
+# 📋 간소화된 시작 로그
+print("🚀 [CELERY] BacklinkVending Worker 초기화 완료")
+print(f"   └─ 브로커: {broker_url.split('@')[-1] if '@' in broker_url else broker_url}")
+print(f"   └─ 큐: default, email, pbn, reports")
+
+# 🔧 태스크 모듈 자동 검색
 try:
-    print("🔍 [Celery] 태스크 모듈 자동 검색 시작...")
     celery.autodiscover_tasks(
         [
             "app.tasks.email_tasks",
@@ -203,26 +233,8 @@ try:
             "app.tasks.scheduled_tasks",
         ]
     )
-    print("✅ [Celery] 태스크 모듈 자동 검색 완료")
+    print("✅ [CELERY] 태스크 모듈 로드 완료")
 except Exception as e:
-    print(f"❌ [Celery] 태스크 모듈 검색 실패: {e}")
-    # 실패해도 Worker가 시작되도록 함
+    print(f"⚠️  [CELERY] 태스크 모듈 로드 오류: {e}")
 
-# 🔧 Worker 연결 상태 확인용 시그널 추가
-from celery.signals import worker_ready, worker_shutdown
-
-
-@worker_ready.connect
-def worker_ready_handler(sender=None, **kwargs):
-    """Worker가 준비되었을 때"""
-    print("🎉 [Celery Worker] 완전히 시작됨 - 태스크 수신 준비 완료!")
-    print(f"   Worker Name: {sender.hostname}")
-
-
-@worker_shutdown.connect
-def worker_shutdown_handler(sender=None, **kwargs):
-    """Worker가 종료될 때"""
-    print("👋 [Celery Worker] 종료됨")
-
-
-print("🚀 [Celery] 초기화 완료 - Worker 시작 대기 중...")
+print("⏳ [CELERY] Worker 시작 대기 중...")

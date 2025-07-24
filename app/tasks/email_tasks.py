@@ -41,17 +41,13 @@ def safe_str(value, default="N/A"):
 
 @app.task
 def send_welcome_email(user_email: str):
-    """
-    신규 사용자 환영 이메일 발송 (5.4 기능)
-    Args:
-        user_email: 사용자 이메일 주소
-    """
-    print(f"🎉 [CELERY TASK] 환영 이메일 태스크 시작: {user_email}")
+    """신규 사용자 환영 이메일 발송 (5.4 기능)"""
+    print(f"🎉 [EMAIL] 환영 이메일 발송 시작: {user_email}")
     debug_print(f"=== 환영 이메일 태스크 시작 ===", "send_welcome_email")
     debug_print(f"수신자: {user_email}", "send_welcome_email")
 
     try:
-        print(f"📧 [CELERY TASK] EmailService 초기화 중...")
+        print(f"📧 [EMAIL] 이메일 서비스 초기화...")
         debug_print("EmailService 초기화 중...", "send_welcome_email")
         email_service = EmailService()
 
@@ -74,58 +70,53 @@ def send_welcome_email(user_email: str):
         </div>
         """
 
-        print(f"📤 [CELERY TASK] 이메일 발송 시작...")
+        print(f"📤 [EMAIL] 이메일 발송 중...")
         debug_print("이메일 발송 시작...", "send_welcome_email")
         # 이메일 발송
         result = email_service.send_email(
             to_email=user_email,
-            subject="[BacklinkVending] 환영합니다! 🎉",
+            subject="[BacklinkVending] 회원가입을 환영합니다! 🎉",
             html_content=html_content,
         )
-        print(f"📤 [CELERY TASK] 이메일 발송 결과: {result}")
+
+        print(f"✅ [EMAIL] 발송 완료: {result.get('status', 'Unknown')}")
         debug_print(f"이메일 발송 결과: {result}", "send_welcome_email")
 
-        print(f"💾 [CELERY TASK] 이메일 로그 저장 시작...")
+        # 이메일 로그 저장
+        print(f"💾 [EMAIL] 로그 저장 중...")
         debug_print("이메일 로그 저장 시작...", "send_welcome_email")
-        # Supabase REST API로 이메일 로그 저장
-        create_email_log_via_api(
+        log_result = create_email_log_via_api(
             email_type="welcome",
             recipient_email=user_email,
-            subject="[BacklinkVending] 환영합니다! 🎉",
-            message_id=result.get("message_id"),
-            template_type="user_welcome",
-            extra_data={"signup_source": "pbn_rest_api"},
-            status="sent" if result.get("success") else "failed",
+            subject="[BacklinkVending] 회원가입을 환영합니다! 🎉",
+            status="sent",
+            message_id=result.get("id"),
+            template_type="welcome",
         )
 
-        print(f"✅ [CELERY TASK] 환영 이메일 태스크 완료 - 성공")
-        debug_print(f"환영 이메일 태스크 완료 - 성공", "send_welcome_email")
-        logger.info(f"Welcome email sent to {user_email}")
+        debug_print(f"이메일 로그 저장 결과: {log_result}", "send_welcome_email")
+
+        print(f"✅ [EMAIL] 환영 이메일 완료")
+        debug_print("환영 이메일 태스크 완료", "send_welcome_email")
+
         return {
             "success": True,
-            "message_id": result.get("message_id"),
+            "message_id": result.get("id"),
             "recipient": user_email,
+            "email_type": "welcome",
         }
 
     except Exception as e:
-        print(f"❌ [CELERY TASK] 환영 이메일 태스크 실패: {e}")
+        print(f"❌ [EMAIL] 환영 이메일 실패: {e}")
         debug_print(f"환영 이메일 태스크 실패: {e}", "send_welcome_email")
-        logger.error(f"Failed to send welcome email: {e}")
-        return {"success": False, "error": str(e)}
+        logger.error(f"환영 이메일 발송 실패: {e}", exc_info=True)
+        raise
 
 
 @app.task
 def send_order_confirmation_email(user_email: str, order_id: str, order_details: dict):
-    """
-    주문 확인 이메일 발송 (5.4 기능)
-    Args:
-        user_email: 사용자 이메일 주소
-        order_id: 주문 ID
-        order_details: 주문 상세 정보
-    """
-    print(
-        f"📋 [CELERY TASK] 주문 확인 이메일 태스크 시작: {user_email}, 주문ID: {order_id}"
-    )
+    """주문 확인 이메일 발송 (5.4 기능)"""
+    print(f"📋 [EMAIL] 주문 확인 이메일 발송: {user_email} | 주문: {order_id[:8]}...")
     debug_print(
         f"=== 주문 확인 이메일 태스크 시작 ===", "send_order_confirmation_email"
     )
@@ -135,7 +126,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
     debug_print(f"주문 상세: {order_details}", "send_order_confirmation_email")
 
     try:
-        print(f"📧 [CELERY TASK] EmailService 초기화 중...")
+        print(f"📧 [EMAIL] 이메일 서비스 초기화...")
         debug_print("EmailService 초기화 중...", "send_order_confirmation_email")
         email_service = EmailService()
 
@@ -174,7 +165,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
         </div>
         """
 
-        print(f"📤 [CELERY TASK] 이메일 발송 시작...")
+        print(f"📤 [EMAIL] 이메일 발송 시작...")
         debug_print("이메일 발송 시작...", "send_order_confirmation_email")
         # 이메일 발송
         result = email_service.send_email(
@@ -182,10 +173,10 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
             subject=f"[BacklinkVending] 주문이 접수되었습니다 - {order_id}",
             html_content=html_content,
         )
-        print(f"📤 [CELERY TASK] 이메일 발송 결과: {result}")
+        print(f"📤 [EMAIL] 이메일 발송 결과: {result}")
         debug_print(f"이메일 발송 결과: {result}", "send_order_confirmation_email")
 
-        print(f"💾 [CELERY TASK] 이메일 로그 저장 시작...")
+        print(f"💾 [EMAIL] 이메일 로그 저장 시작...")
         debug_print("이메일 로그 저장 시작...", "send_order_confirmation_email")
         # Supabase REST API로 이메일 로그 저장
         create_email_log_via_api(
@@ -203,7 +194,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
             status="sent" if result.get("success") else "failed",
         )
 
-        print(f"✅ [CELERY TASK] 주문 확인 이메일 태스크 완료 - 성공")
+        print(f"✅ [EMAIL] 주문 확인 이메일 태스크 완료 - 성공")
         debug_print(
             f"주문 확인 이메일 태스크 완료 - 성공", "send_order_confirmation_email"
         )
@@ -215,7 +206,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
         }
 
     except Exception as e:
-        print(f"❌ [CELERY TASK] 주문 확인 이메일 태스크 실패: {e}")
+        print(f"❌ [EMAIL] 주문 확인 이메일 태스크 실패: {e}")
         debug_print(
             f"주문 확인 이메일 태스크 실패: {e}", "send_order_confirmation_email"
         )

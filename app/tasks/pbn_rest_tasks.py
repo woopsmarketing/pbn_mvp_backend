@@ -33,27 +33,23 @@ def create_pbn_backlink_rest(
     pbn_site_domain: str | None = None,
 ):
     """무료 PBN 1개 생성 – LangChain 콘텐츠 생성 통합 버전"""
-    print(f"🔗 [CELERY TASK] PBN 백링크 생성 태스크 시작!")
-    print(f"📋 [CELERY TASK] 주문ID: {order_id}")
-    print(f"🎯 [CELERY TASK] 대상URL: {target_url}")
-    print(f"🔑 [CELERY TASK] 키워드: {keyword}")
-    print(f"🌐 [CELERY TASK] PBN 도메인: {pbn_site_domain}")
+    print(f"🚀 [PBN] 백링크 생성 시작 | 주문: {order_id[:8]}... | 키워드: {keyword}")
 
     logger.info(
         f"PBN 백링크 생성 태스크 시작: order_id={order_id}, target_url={target_url}, keyword={keyword}"
     )
 
     try:
-        print(f"📝 [CELERY TASK] 주문 상태를 processing으로 업데이트 중...")
+        print(f"📝 [PBN] 주문 상태 업데이트 중...")
         logger.info(f"주문 상태를 processing으로 업데이트 중... (order_id: {order_id})")
 
         # 1) 주문을 processing 상태로 업데이트
         supabase_client.update_order_status(order_id, "processing")
-        print(f"✅ [CELERY TASK] 주문 상태 업데이트 완료")
+        print(f"✅ [PBN] 주문 상태 업데이트 완료")
         logger.info("주문 상태 업데이트 완료")
 
         # 2) 실제 PBN 포스팅으로 바로 진행 (시뮬레이션 제거)
-        print(f"🚀 [CELERY TASK] 실제 PBN 포스팅 프로세스 시작...")
+        print(f"🚀 [PBN] 실제 PBN 포스팅 프로세스 시작...")
         logger.info("실제 PBN 포스팅 프로세스 시작...")
 
         # 3) PBN 사이트 선택 및 포스팅 시도 (최대 5개 사이트까지 시도)
@@ -152,57 +148,30 @@ def create_pbn_backlink_rest(
             if wp_user and wp_app_password:
                 logger.info(f"실제 워드프레스 사이트에 포스팅 시도: {site}")
 
+                # 🎯 핵심 단계 1: LangChain 콘텐츠 생성
+                print(f"📝 [PBN] 콘텐츠 생성 중... (키워드: {keyword})")
+
+                # 실제 AI 콘텐츠 생성 호출
+                content_result = langchain_content_generator.generate_blog_content(
+                    target_url, keyword, pbn_site_domain or clean_domain
+                )
+
+                if not content_result.get("success"):
+                    logger.error(f"LangChain 콘텐츠 생성 실패: {content_result}")
+                    continue
+
+                title = content_result.get("title", f"{keyword} 관련 정보")
+                html_content = content_result.get("html_content", "")
+                featured_image_path = content_result.get("featured_image_path")
+
+                if not html_content:
+                    logger.warning(f"콘텐츠가 생성되지 않아 다음 사이트로 시도합니다")
+                    continue
+
+                # 🎯 핵심 단계 2: 워드프레스 포스팅
+                print(f"🌐 [PBN] 워드프레스 업로드 중... ({clean_domain})")
+
                 try:
-                    # PBN 콘텐츠 서비스 가져오기
-                    content_service = get_pbn_content_service()
-
-                    # LangChain을 통한 완전한 콘텐츠 생성
-                    logger.info("LangChain 콘텐츠 생성 서비스 시작...")
-                    content_result = content_service.generate_complete_content(
-                        keyword=keyword, target_url=target_url
-                    )
-
-                    if content_result["success"]:
-                        logger.info(f"LangChain 콘텐츠 생성 성공")
-                        title = content_result["title"]
-                        html_content = content_result["html_content"]
-                        logger.info(f"HTML 콘텐츠 길이: {len(html_content)} 문자")
-
-                        # 추가 HTML 정리 (워드프레스 호환성)
-                        import re
-
-                        # 불필요한 마크다운 기호 제거
-                        html_content = re.sub(r"#{1,6}\s*", "", html_content)
-                        html_content = re.sub(r"—+", "", html_content)
-                        html_content = re.sub(
-                            r"\n{3,}", "\n\n", html_content
-                        )  # 과도한 줄바꿈 정리
-                        logger.info(f"HTML 콘텐츠 정리 완료")
-
-                        featured_image_path = content_result.get("featured_image_path")
-
-                    else:
-                        logger.warning(
-                            f"LangChain 콘텐츠 생성 실패, 폴백 방식 사용: {content_result.get('error', '알 수 없는 오류')}"
-                        )
-                        # 폴백: 기존 방식으로 글 작성
-                        title = (
-                            f"Test BackLink for SEO 백링크 {random.randint(1, 1000)}"
-                        )
-                        logger.info(f"폴백 글 제목: {title}")
-
-                        content = f"""
-<h2>{keyword}에 대한 유용한 정보</h2>
-<p>이 글에서는 <a href="{target_url}">{keyword}</a>에 대해 자세히 알아보겠습니다.</p>
-<p>{keyword}는 많은 사람들이 관심을 가지는 주제입니다.</p>
-<p>더 자세한 정보는 링크를 참고해 주세요.</p>
-"""
-                        html_content = build_html_content(
-                            title, content, target_url, keyword
-                        )
-                        featured_image_path = None
-
-                    # 워드프레스에 포스팅 (WordPressUploader 사용)
                     logger.info(f"워드프레스 포스팅 시작: {site}")
                     from app.utils.wordpress_uploader import WordPressUploader
 
@@ -248,6 +217,11 @@ def create_pbn_backlink_rest(
 
                     if post_result["success"] and post_result.get("post_created"):
                         backlink_url = post_result.get("post_url")
+
+                        # 🎯 핵심 단계 3: 성공 완료
+                        print(f"✅ [PBN] 백링크 생성 완료!")
+                        print(f"   └─ URL: {backlink_url}")
+
                         logger.info(f"워드프레스 포스팅 성공: {backlink_url}")
 
                         # 성공한 사이트를 우선순위 리스트에 추가 (중복 방지)
@@ -353,6 +327,7 @@ def create_pbn_backlink_rest(
                     backlink_result=backlink_result,
                 )
 
+        print(f"🎉 [PBN] 태스크 완료 | 주문: {order_id[:8]}...")
         logger.info(f"PBN 백링크 태스크 완료: order_id={order_id}")
 
         return {
