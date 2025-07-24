@@ -141,7 +141,31 @@ def create_order_via_rest(order_data):
 
 
 def check_user_free_pbn_usage(clerk_id):
-    """사용자의 무료 PBN 사용 이력 확인"""
+    """
+    사용자의 무료 PBN 사용 이력 확인
+    - 테스트 계정은 무제한 사용 가능
+    - 일반 계정은 1회 제한
+    """
+
+    # 테스트 계정 예외 처리 (무제한 사용 가능)
+    TEST_ACCOUNTS = ["vnfm0580@gmail.com", "mwang12347890@gmail.com"]
+
+    try:
+        # 사용자 정보 조회해서 이메일 확인
+        user = get_user_via_rest(clerk_id)
+        if user and user.get("email") in TEST_ACCOUNTS:
+            logger.info(f"테스트 계정 감지: {user.get('email')} - 무료 PBN 제한 해제")
+            return {
+                "has_used": False,  # 테스트 계정은 항상 사용 가능
+                "user_exists": True,
+                "is_test_account": True,
+                "test_account_email": user.get("email"),
+                "total_free_orders": 0,
+                "active_orders": 0,
+            }
+    except Exception as e:
+        logger.warning(f"테스트 계정 확인 중 오류: {e}")
+
     supabase = get_supabase_client()
 
     headers = {
@@ -177,6 +201,8 @@ def check_user_free_pbn_usage(clerk_id):
             return {
                 "has_used": len(active_orders) > 0,
                 "user_exists": True,
+                "is_test_account": False,
+                "user_email": user.get("email", ""),
                 "total_free_orders": len(orders),
                 "active_orders": len(active_orders),
                 "orders": active_orders[:3],  # 최근 3개만 반환
@@ -288,23 +314,37 @@ async def rest_test_request(request: PbnSampleRequest):
             logger.warning("활성 PBN 사이트 없음")
             raise HTTPException(status_code=503, detail="No active PBN sites available")
 
-        # 2. 테스트 사용자 무료 PBN 사용 이력 확인 (테스트용도 1회 제한)
+        # 2. 테스트 사용자 무료 PBN 사용 이력 확인 (테스트 계정은 무제한)
         test_clerk_id = "test_user_123"
 
         usage_check = check_user_free_pbn_usage(test_clerk_id)
 
-        if usage_check["has_used"]:
-            logger.warning(f"테스트 사용자도 이미 무료 PBN을 사용했습니다")
+        # 테스트 계정은 무제한이므로 이 체크는 사실상 통과됨
+        if usage_check["has_used"] and not usage_check.get("is_test_account", False):
+            logger.warning(f"테스트 사용자도 무료 PBN 제한에 걸림 (예상치 못한 상황)")
+
+            error_message = """
+🧪 테스트 계정 제한 알림
+
+죄송합니다. 현재 테스트 계정도 일시적으로 제한이 적용되었습니다.
+
+📞 관리자에게 문의해주세요:
+• 이메일: vnfm0580@gmail.com
+• 테스트 계정 제한 해제 요청
+
+이는 예상치 못한 상황이므로 빠르게 해결해드리겠습니다.
+            """.strip()
+
             raise HTTPException(
                 status_code=409,
                 detail={
-                    "message": "테스트 계정도 이미 무료 PBN 백링크 서비스를 사용했습니다. 한 계정당 1회만 이용 가능합니다.",
-                    "code": "FREE_PBN_ALREADY_USED",
-                    "note": "테스트용 계정도 동일한 제한이 적용됩니다",
-                    "usage_info": {
-                        "total_orders": usage_check.get("total_free_orders", 0),
-                        "active_orders": usage_check.get("active_orders", 0),
-                    },
+                    "success": False,
+                    "message": error_message,
+                    "title": "테스트 계정 제한",
+                    "type": "warning",
+                    "code": "TEST_ACCOUNT_LIMITED",
+                    "note": "예상치 못한 테스트 계정 제한 상황",
+                    "contact_admin": "vnfm0580@gmail.com",
                 },
             )
 
@@ -473,22 +513,64 @@ async def sample_request_authenticated(
 
         logger.info(f"실제 사용자: {user_email} (clerk_id: {clerk_id})")
 
-        # 3. 무료 PBN 사용 이력 확인 (한 계정당 1회 제한)
+        # 3. 무료 PBN 사용 이력 확인 (한 계정당 1회 제한, 테스트 계정 예외)
         usage_check = check_user_free_pbn_usage(clerk_id)
 
         if usage_check["has_used"]:
-            logger.warning(f"사용자 {clerk_id}는 이미 무료 PBN을 사용했습니다")
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": "이미 무료 PBN 백링크 서비스를 사용하셨습니다. 한 계정당 1회만 이용 가능합니다.",
-                    "code": "FREE_PBN_ALREADY_USED",
-                    "usage_info": {
-                        "total_orders": usage_check.get("total_free_orders", 0),
-                        "active_orders": usage_check.get("active_orders", 0),
+            # 테스트 계정인지 확인
+            if usage_check.get("is_test_account", False):
+                logger.info(
+                    f"테스트 계정 {usage_check.get('test_account_email')} - 무료 PBN 제한 해제로 진행"
+                )
+            else:
+                logger.warning(
+                    f"사용자 {clerk_id}({usage_check.get('user_email', '')})는 이미 무료 PBN을 사용했습니다"
+                )
+
+                # 더 친화적인 에러 메시지
+                total_orders = usage_check.get("total_free_orders", 0)
+                active_orders = usage_check.get("active_orders", 0)
+                user_email = usage_check.get("user_email", "")
+
+                error_message = f"""
+⚠️ 무료 PBN 백링크 서비스 이용 제한
+
+안녕하세요! 
+죄송하지만 무료 PBN 백링크 서비스는 한 계정당 1회만 이용하실 수 있습니다.
+
+📊 현재 이용 현황:
+• 이메일: {user_email}
+• 총 무료 주문: {total_orders}회
+• 진행 중인 주문: {active_orders}개
+
+💡 더 많은 백링크가 필요하시다면:
+• 프리미엄 PBN 백링크 패키지를 이용해주세요
+• 고품질의 다양한 백링크를 제공합니다
+• 문의사항은 언제든 연락주세요!
+
+감사합니다 🙏
+                """.strip()
+
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "success": False,
+                        "message": error_message,
+                        "title": "무료 서비스 이용 제한",
+                        "type": "warning",
+                        "code": "FREE_PBN_ALREADY_USED",
+                        "user_info": {
+                            "email": user_email,
+                            "total_orders": total_orders,
+                            "active_orders": active_orders,
+                        },
+                        "recommendations": [
+                            "프리미엄 PBN 백링크 패키지 이용",
+                            "고품질 백링크 서비스 문의",
+                            "맞춤형 SEO 상담 신청",
+                        ],
                     },
-                },
-            )
+                )
 
         logger.info(
             f"무료 PBN 사용 가능 확인: 총 {usage_check.get('total_free_orders', 0)}회 사용 이력"
@@ -626,21 +708,42 @@ async def check_free_pbn_usage(current_user: dict = Depends(get_current_clerk_us
 
         usage_check = check_user_free_pbn_usage(clerk_id)
 
+        # 테스트 계정 여부 확인
+        is_test_account = usage_check.get("is_test_account", False)
+        user_email = usage_check.get("user_email", "") or usage_check.get(
+            "test_account_email", ""
+        )
+
+        # 테스트 계정은 항상 사용 가능
+        can_use_free_pbn = not usage_check["has_used"] or is_test_account
+
+        # 상태별 메시지 생성
+        if is_test_account:
+            status_message = f"🧪 테스트 계정 ({user_email}): 무료 PBN 백링크 서비스를 무제한으로 이용하실 수 있습니다."
+        elif not usage_check["has_used"]:
+            status_message = "✅ 무료 PBN 백링크 서비스를 이용할 수 있습니다."
+        else:
+            status_message = "⚠️ 이미 무료 PBN 백링크 서비스를 사용하셨습니다. 추가 이용을 원하시면 유료 서비스를 이용해주세요."
+
         return {
             "success": True,
-            "can_use_free_pbn": not usage_check["has_used"],
+            "can_use_free_pbn": can_use_free_pbn,
             "has_used_before": usage_check["has_used"],
             "user_exists": usage_check["user_exists"],
+            "is_test_account": is_test_account,
+            "user_email": user_email,
+            "account_type": "테스트 계정" if is_test_account else "일반 계정",
             "usage_statistics": {
                 "total_free_orders": usage_check.get("total_free_orders", 0),
                 "active_orders": usage_check.get("active_orders", 0),
                 "recent_orders": usage_check.get("orders", []),
             },
-            "message": (
-                "무료 PBN 백링크 서비스를 이용할 수 있습니다."
-                if not usage_check["has_used"]
-                else "이미 무료 PBN 백링크 서비스를 사용하셨습니다. 추가 이용을 원하시면 유료 서비스를 이용해주세요."
-            ),
+            "status_message": status_message,
+            "limitations": {
+                "free_pbn_limit": "무제한" if is_test_account else "1회",
+                "can_bypass_limit": is_test_account,
+                "test_privileges": is_test_account,
+            },
         }
 
     except HTTPException:

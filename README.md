@@ -54,24 +54,131 @@ Authorization: Bearer {clerk_jwt_token}
 ```
 
 ### ⚠️ **제한 적용 시 응답**
+
+**개선된 사용자 친화적 에러 메시지:**
 ```json
 {
   "detail": {
-    "message": "이미 무료 PBN 백링크 서비스를 사용하셨습니다. 한 계정당 1회만 이용 가능합니다.",
+    "success": false,
+    "message": "⚠️ 무료 PBN 백링크 서비스 이용 제한\n\n안녕하세요!\n죄송하지만 무료 PBN 백링크 서비스는 한 계정당 1회만 이용하실 수 있습니다.\n\n📊 현재 이용 현황:\n• 이메일: user@example.com\n• 총 무료 주문: 1회\n• 진행 중인 주문: 1개\n\n💡 더 많은 백링크가 필요하시다면:\n• 프리미엄 PBN 백링크 패키지를 이용해주세요\n• 고품질의 다양한 백링크를 제공합니다\n• 문의사항은 언제든 연락주세요!\n\n감사합니다 🙏",
+    "title": "무료 서비스 이용 제한",
+    "type": "warning",
     "code": "FREE_PBN_ALREADY_USED",
-    "usage_info": {
+    "user_info": {
+      "email": "user@example.com",
       "total_orders": 1,
       "active_orders": 1
-    }
+    },
+    "recommendations": [
+      "프리미엄 PBN 백링크 패키지 이용",
+      "고품질 백링크 서비스 문의",
+      "맞춤형 SEO 상담 신청"
+    ]
   }
 }
 ```
+
+### 🧪 **테스트 계정 예외 처리**
+
+**무제한 사용 가능한 테스트 계정:**
+- `vnfm0580@gmail.com` (관리자 계정)
+- `mwang12347890@gmail.com` (테스트 계정)
+
+이 계정들은 무료 PBN 1회 제한에서 **자동으로 제외**되어 무제한 사용 가능합니다.
 
 ### 🛠 **관리자 제한 해제**
 ```bash
 # 관리자가 특정 사용자의 무료 PBN 제한 해제
 POST /api/v1/pbn/admin/reset-free-usage/{clerk_id}?reason=고객지원요청
 Authorization: Bearer {admin_jwt_token}
+```
+
+## 🎨 프론트엔드 에러 처리 가이드
+
+### **개선된 에러 응답 활용**
+
+새로운 에러 응답 형태를 활용해 사용자 친화적인 UI를 구현할 수 있습니다:
+
+```javascript
+// API 요청 시 에러 처리 예제
+try {
+  const response = await fetch('/api/v1/pbn/sample-request', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${jwt_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      target_url: 'https://example.com',
+      keyword: 'SEO 백링크'
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    
+    if (errorData.detail?.code === 'FREE_PBN_ALREADY_USED') {
+      // 보기 좋은 경고 팝업 표시
+      showWarningModal({
+        title: errorData.detail.title,
+        message: errorData.detail.message,
+        type: errorData.detail.type,
+        recommendations: errorData.detail.recommendations,
+        userInfo: errorData.detail.user_info
+      });
+    }
+  }
+} catch (error) {
+  console.error('API 요청 실패:', error);
+}
+```
+
+### **추천 UI 컴포넌트**
+
+```html
+<!-- 경고 모달 예제 -->
+<div class="warning-modal">
+  <div class="modal-header">
+    <h3>⚠️ 무료 서비스 이용 제한</h3>
+  </div>
+  <div class="modal-body">
+    <div class="user-info">
+      <p><strong>📧 이메일:</strong> user@example.com</p>
+      <p><strong>📊 이용 현황:</strong> 1회 사용 완료</p>
+    </div>
+    
+    <div class="recommendations">
+      <h4>💡 추천 서비스:</h4>
+      <ul>
+        <li>프리미엄 PBN 백링크 패키지</li>
+        <li>고품질 백링크 서비스 상담</li>
+        <li>맞춤형 SEO 전략 수립</li>
+      </ul>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-primary">프리미엄 서비스 보기</button>
+    <button class="btn-secondary">문의하기</button>
+    <button class="btn-close">닫기</button>
+  </div>
+</div>
+```
+
+### **테스트 계정 확인**
+
+테스트 계정 여부는 응답의 `is_test_account` 필드로 확인할 수 있습니다:
+
+```javascript
+// 사용자 계정 상태 확인
+const checkUserStatus = async () => {
+  const response = await fetch('/api/v1/pbn/check-free-usage');
+  const data = await response.json();
+  
+  if (data.is_test_account) {
+    console.log('테스트 계정: 무제한 사용 가능');
+    showTestAccountBadge();
+  }
+};
 ```
 
 ## 🐳 Docker로 실행
