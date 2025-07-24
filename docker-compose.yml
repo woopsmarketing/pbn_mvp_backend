@@ -1,13 +1,13 @@
-# v1.3 - 작업 추적 시스템 추가 (2025.01.08)
-# Docker Compose 설정 - 로컬 개발 및 PaaS 배포 준비
+# v1.3 - ?�업 추적 ?�스??추�? (2025.01.08)
+# Docker Compose ?�정 - 로컬 개발 �?PaaS 배포 준�?
 version: '3.8'
 
 services:
-  # PostgreSQL 데이터베이스
+  # PostgreSQL ?�이?�베?�스
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: followsales
+      POSTGRES_DB: backlinkvending
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
     ports:
@@ -20,7 +20,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Redis (Celery 브로커 및 결과 백엔드)
+  # Redis (Celery 브로�?�?결과 백엔??
   redis:
     image: redis:7-alpine
     ports:
@@ -34,24 +34,24 @@ services:
       timeout: 10s
       retries: 3
 
-  # FastAPI 애플리케이션
+  # FastAPI ?�플리�??�션
   api:
     build: .
     ports:
       - "8000:8000"
     environment:
-      # 데이터베이스 설정
-      DATABASE_URL: postgresql://postgres:password@db:5432/followsales
+      # ?�이?�베?�스 ?�정
+      DATABASE_URL: postgresql://postgres:password@db:5432/backlinkvending
       
-      # Celery 설정 (Docker 네트워크 내부 주소)
+      # Celery ?�정 (Docker ?�트?�크 ?��? 주소)
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       
-      # 기타 환경변수 (실제 배포시 .env 파일이나 시크릿으로 관리)
+      # 기�? ?�경변??(?�제 배포??.env ?�일?�나 ?�크릿으�?관�?
       SECRET_KEY: your-secret-key-here
       DEBUG: "true"
       
-      # API 키들 (실제 배포시 시크릿으로 관리)
+      # API ?�들 (?�제 배포???�크릿으�?관�?
       CLERK_SECRET_KEY: your-clerk-secret
       RESEND_API_KEY: your-resend-api-key
       
@@ -64,9 +64,9 @@ services:
       - .:/app
     command: >
       sh -c "
-        # 마이그레이션 실행
+        # 마이그레?�션 ?�행
         alembic upgrade head &&
-        # FastAPI 서버 시작
+        # FastAPI ?�버 ?�작
         uvicorn main:app --host 0.0.0.0 --port 8000 --reload
       "
 
@@ -74,12 +74,12 @@ services:
   worker:
     build: .
     environment:
-      # 동일한 환경변수 설정
-      DATABASE_URL: postgresql://postgres:password@db:5432/followsales
+      # ?�일???�경변???�정
+      DATABASE_URL: postgresql://postgres:password@db:5432/backlinkvending
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       
-      # Worker 전용 설정
+      # Worker ?�용 ?�정
       PYTHONPATH: /app
       
     depends_on:
@@ -91,9 +91,9 @@ services:
       - .:/app
     command: >
       sh -c "
-        # 짧은 지연 후 Worker 시작 (DB 완전 준비 대기)
+        # 짧�? 지????Worker ?�작 (DB ?�전 준�??��?
         sleep 10 &&
-        # Celery Worker 시작 (Windows 호환 설정 유지)
+        # Celery Worker ?�작 (Windows ?�환 ?�정 ?��?)
         celery -A app.tasks.celery_app worker --loglevel=info --pool=solo --concurrency=1
       "
 
@@ -101,12 +101,12 @@ services:
   beat:
     build: .
     environment:
-      # 동일한 환경변수 설정
-      DATABASE_URL: postgresql://postgres:password@db:5432/followsales
+      # ?�일???�경변???�정
+      DATABASE_URL: postgresql://postgres:password@db:5432/backlinkvending
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       
-      # Beat 전용 설정
+      # Beat ?�용 ?�정
       PYTHONPATH: /app
       
     depends_on:
@@ -118,16 +118,16 @@ services:
         condition: service_started
     volumes:
       - .:/app
-      - beat_schedule:/app/beat_schedule  # Beat 스케줄 파일 영구 저장
+      - beat_schedule:/app/beat_schedule  # Beat ?��?�??�일 ?�구 ?�??
     command: >
       sh -c "
-        # Worker 완전 시작 대기
+        # Worker ?�전 ?�작 ?��?
         sleep 15 &&
-        # Celery Beat 시작
+        # Celery Beat ?�작
         celery -A app.tasks.celery_app beat --loglevel=info --schedule=/app/beat_schedule/celerybeat-schedule
       "
 
-  # Flower (Celery 모니터링) - 선택사항
+  # Flower (Celery 모니?�링) - ?�택?�항
   flower:
     build: .
     ports:
@@ -155,7 +155,7 @@ volumes:
   beat_schedule:
     driver: local
 
-# PaaS 배포시 네트워크 설정 (선택사항)
+# PaaS 배포???�트?�크 ?�정 (?�택?�항)
 networks:
   default:
-    name: followsales-network 
+    name: backlinkvending-network 

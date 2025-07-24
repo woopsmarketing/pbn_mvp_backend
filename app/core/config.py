@@ -6,10 +6,10 @@ class Settings(BaseSettings):
     # Resend
     RESEND_API_KEY: Optional[str] = None
     EMAIL_FROM: Optional[str] = "onboarding@resend.dev"  # 임시: 도메인 인증 완료까지
-    EMAIL_FROM_NAME: Optional[str] = "FollowSales 팀"
+    EMAIL_FROM_NAME: Optional[str] = "BacklinkVending 팀"
 
     # Project
-    PROJECT_NAME: str = "API_followsales"
+    PROJECT_NAME: str = "BacklinkVending API"
 
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"

@@ -1,5 +1,5 @@
 """
-이메일 발송 태스크 모듈 - Supabase REST API 방식
+?�메??발송 ?�스??모듈 - Supabase REST API 방식
 """
 
 import logging
@@ -13,9 +13,9 @@ from app.services.supabase_client import supabase
 logger = logging.getLogger(__name__)
 
 
-# 디버깅용 print 함수
+# ?�버깅용 print ?�수
 def debug_print(message: str, task_name: str = ""):
-    """디버깅용 print 함수"""
+    """?�버깅용 print ?�수"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] [EMAIL_TASK] [{task_name}] {message}")
     logger.info(f"[EMAIL_TASK] [{task_name}] {message}")
@@ -23,12 +23,12 @@ def debug_print(message: str, task_name: str = ""):
 
 def safe_str(value, default="N/A"):
     """
-    안전한 문자열 변환 함수
+    ?�전??문자??변???�수
     Args:
-        value: 변환할 값
-        default: 기본값
+        value: 변?�할 �?
+        default: 기본�?
     Returns:
-        str: 안전하게 변환된 문자열
+        str: ?�전?�게 변?�된 문자??
     """
     if value is None:
         return default
@@ -42,58 +42,58 @@ def safe_str(value, default="N/A"):
 @app.task
 def send_welcome_email(user_email: str):
     """
-    신규 사용자 환영 이메일 발송 (5.4 기능)
+    ?�규 ?�용???�영 ?�메??발송 (5.4 기능)
     Args:
-        user_email: 사용자 이메일 주소
+        user_email: ?�용???�메??주소
     """
-    debug_print(f"=== 환영 이메일 태스크 시작 ===", "send_welcome_email")
-    debug_print(f"수신자: {user_email}", "send_welcome_email")
+    debug_print(f"=== ?�영 ?�메???�스???�작 ===", "send_welcome_email")
+    debug_print(f"?�신?? {user_email}", "send_welcome_email")
 
     try:
-        debug_print("EmailService 초기화 중...", "send_welcome_email")
+        debug_print("EmailService 초기??�?..", "send_welcome_email")
         email_service = EmailService()
 
-        # HTML 콘텐츠
+        # HTML 콘텐�?
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2563eb;">🎉 FollowSales에 오신 것을 환영합니다!</h2>
+            <h2 style="color: #2563eb;">?�� BacklinkVending???�신 것을 ?�영?�니??</h2>
             
             <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #1e40af; margin-top: 0;">시작하기</h3>
-                <p>✅ 무료 PBN 백링크 서비스를 이용하실 수 있습니다</p>
-                <p>✅ 전문적인 SEO 상담을 받으실 수 있습니다</p>
-                <p>✅ 다양한 백링크 패키지를 확인하세요</p>
+                <h3 style="color: #1e40af; margin-top: 0;">?�작?�기</h3>
+                <p>??무료 PBN 백링???�비?��? ?�용?�실 ???�습?�다</p>
+                <p>???�문?�인 SEO ?�담??받으?????�습?�다</p>
+                <p>???�양??백링???�키지�??�인?�세??/p>
             </div>
             
             <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-                궁금한 점이 있으시면 언제든 연락주세요!<br>
-                FollowSales 팀
+                궁금???�이 ?�으?�면 ?�제???�락주세??<br>
+                BacklinkVending ?�
             </p>
         </div>
         """
 
-        debug_print("이메일 발송 시작...", "send_welcome_email")
-        # 이메일 발송
+        debug_print("?�메??발송 ?�작...", "send_welcome_email")
+        # ?�메??발송
         result = email_service.send_email(
             to_email=user_email,
-            subject="[FollowSales] 환영합니다! 🎉",
+            subject="[BacklinkVending] ?�영?�니?? ?��",
             html_content=html_content,
         )
-        debug_print(f"이메일 발송 결과: {result}", "send_welcome_email")
+        debug_print(f"?�메??발송 결과: {result}", "send_welcome_email")
 
-        debug_print("이메일 로그 저장 시작...", "send_welcome_email")
-        # Supabase REST API로 이메일 로그 저장
+        debug_print("?�메??로그 ?�???�작...", "send_welcome_email")
+        # Supabase REST API�??�메??로그 ?�??
         create_email_log_via_api(
             email_type="welcome",
             recipient_email=user_email,
-            subject="[FollowSales] 환영합니다! 🎉",
+            subject="[BacklinkVending] ?�영?�니?? ?��",
             message_id=result.get("message_id"),
             template_type="user_welcome",
             extra_data={"signup_source": "pbn_rest_api"},
             status="sent" if result.get("success") else "failed",
         )
 
-        debug_print(f"환영 이메일 태스크 완료 - 성공", "send_welcome_email")
+        debug_print(f"?�영 ?�메???�스???�료 - ?�공", "send_welcome_email")
         logger.info(f"Welcome email sent to {user_email}")
         return {
             "success": True,
@@ -102,7 +102,7 @@ def send_welcome_email(user_email: str):
         }
 
     except Exception as e:
-        debug_print(f"환영 이메일 태스크 실패: {e}", "send_welcome_email")
+        debug_print(f"?�영 ?�메???�스???�패: {e}", "send_welcome_email")
         logger.error(f"Failed to send welcome email: {e}")
         return {"success": False, "error": str(e)}
 
@@ -110,74 +110,74 @@ def send_welcome_email(user_email: str):
 @app.task
 def send_order_confirmation_email(user_email: str, order_id: str, order_details: dict):
     """
-    주문 확인 이메일 발송 (5.4 기능)
+    주문 ?�인 ?�메??발송 (5.4 기능)
     Args:
-        user_email: 사용자 이메일 주소
+        user_email: ?�용???�메??주소
         order_id: 주문 ID
-        order_details: 주문 상세 정보
+        order_details: 주문 ?�세 ?�보
     """
     debug_print(
-        f"=== 주문 확인 이메일 태스크 시작 ===", "send_order_confirmation_email"
+        f"=== 주문 ?�인 ?�메???�스???�작 ===", "send_order_confirmation_email"
     )
     debug_print(
-        f"수신자: {user_email}, 주문ID: {order_id}", "send_order_confirmation_email"
+        f"?�신?? {user_email}, 주문ID: {order_id}", "send_order_confirmation_email"
     )
-    debug_print(f"주문 상세: {order_details}", "send_order_confirmation_email")
+    debug_print(f"주문 ?�세: {order_details}", "send_order_confirmation_email")
 
     try:
-        debug_print("EmailService 초기화 중...", "send_order_confirmation_email")
+        debug_print("EmailService 초기??�?..", "send_order_confirmation_email")
         email_service = EmailService()
 
         target_url = safe_str(order_details.get("target_url", ""))
         keyword = safe_str(order_details.get("keyword", ""))
 
         debug_print(
-            f"처리할 URL: {target_url}, 키워드: {keyword}",
+            f"처리??URL: {target_url}, ?�워?? {keyword}",
             "send_order_confirmation_email",
         )
 
-        # HTML 콘텐츠
+        # HTML 콘텐�?
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2563eb;">🎉 주문이 성공적으로 접수되었습니다!</h2>
+            <h2 style="color: #2563eb;">?�� 주문???�공?�으�??�수?�었?�니??</h2>
             
             <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #1e40af; margin-top: 0;">주문 정보</h3>
+                <h3 style="color: #1e40af; margin-top: 0;">주문 ?�보</h3>
                 <p><strong>주문 번호:</strong> {order_id}</p>
-                <p><strong>대상 URL:</strong> {target_url}</p>
-                <p><strong>키워드:</strong> {keyword}</p>
-                <p><strong>주문 일시:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p><strong>?�??URL:</strong> {target_url}</p>
+                <p><strong>?�워??</strong> {keyword}</p>
+                <p><strong>주문 ?�시:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             </div>
             
             <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #059669; margin-top: 0;">다음 단계</h3>
-                <p>✅ 주문이 접수되었습니다</p>
-                <p>🔄 백링크 구축 작업이 시작됩니다</p>
-                <p>📧 완료 시 결과를 이메일로 알려드립니다</p>
+                <h3 style="color: #059669; margin-top: 0;">?�음 ?�계</h3>
+                <p>??주문???�수?�었?�니??/p>
+                <p>?�� 백링??구축 ?�업???�작?�니??/p>
+                <p>?�� ?�료 ??결과�??�메?�로 ?�려?�립?�다</p>
             </div>
             
             <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-                감사합니다!<br>
-                FollowSales 팀
+                감사?�니??<br>
+                BacklinkVending ?�
             </p>
         </div>
         """
 
-        debug_print("이메일 발송 시작...", "send_order_confirmation_email")
-        # 이메일 발송
+        debug_print("?�메??발송 ?�작...", "send_order_confirmation_email")
+        # ?�메??발송
         result = email_service.send_email(
             to_email=user_email,
-            subject=f"[FollowSales] 주문이 접수되었습니다 - {order_id}",
+            subject=f"[BacklinkVending] 주문???�수?�었?�니??- {order_id}",
             html_content=html_content,
         )
-        debug_print(f"이메일 발송 결과: {result}", "send_order_confirmation_email")
+        debug_print(f"?�메??발송 결과: {result}", "send_order_confirmation_email")
 
-        debug_print("이메일 로그 저장 시작...", "send_order_confirmation_email")
-        # Supabase REST API로 이메일 로그 저장
+        debug_print("?�메??로그 ?�???�작...", "send_order_confirmation_email")
+        # Supabase REST API�??�메??로그 ?�??
         create_email_log_via_api(
             email_type="order_confirmation",
             recipient_email=user_email,
-            subject=f"[FollowSales] 주문이 접수되었습니다 - {order_id}",
+            subject=f"[BacklinkVending] 주문???�수?�었?�니??- {order_id}",
             message_id=result.get("message_id"),
             order_id=order_id,
             template_type="pbn_order",
@@ -190,7 +190,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
         )
 
         debug_print(
-            f"주문 확인 이메일 태스크 완료 - 성공", "send_order_confirmation_email"
+            f"주문 ?�인 ?�메???�스???�료 - ?�공", "send_order_confirmation_email"
         )
         logger.info(f"Order confirmation email sent to {user_email}")
         return {
@@ -201,7 +201,7 @@ def send_order_confirmation_email(user_email: str, order_id: str, order_details:
 
     except Exception as e:
         debug_print(
-            f"주문 확인 이메일 태스크 실패: {e}", "send_order_confirmation_email"
+            f"주문 ?�인 ?�메???�스???�패: {e}", "send_order_confirmation_email"
         )
         logger.error(f"Failed to send order confirmation email: {e}")
         return {"success": False, "error": str(e)}
@@ -212,77 +212,77 @@ def send_backlink_completion_email(
     user_email: str, order_id: str, backlink_result: dict
 ):
     """
-    백링크 구축 완료 이메일 발송 (5.4 기능)
+    백링??구축 ?�료 ?�메??발송 (5.4 기능)
     Args:
-        user_email: 사용자 이메일 주소
+        user_email: ?�용???�메??주소
         order_id: 주문 ID
-        backlink_result: 백링크 구축 결과
+        backlink_result: 백링??구축 결과
     """
     try:
         email_service = EmailService()
 
-        # 백링크 결과 정보 추출
+        # 백링??결과 ?�보 추출
         target_url = safe_str(backlink_result.get("target_url", ""))
         keyword = safe_str(backlink_result.get("keyword", ""))
         pbn_urls = backlink_result.get("pbn_urls", [])
         total_backlinks = len(pbn_urls)
 
-        # PBN URL 리스트 HTML 생성
+        # PBN URL 리스??HTML ?�성
         pbn_list_html = ""
-        for i, pbn_url in enumerate(pbn_urls[:10], 1):  # 최대 10개까지만 표시
-            pbn_list_html += f"<p>🔗 {i}. {safe_str(pbn_url)}</p>"
+        for i, pbn_url in enumerate(pbn_urls[:10], 1):  # 최�? 10개까지�??�시
+            pbn_list_html += f"<p>?�� {i}. {safe_str(pbn_url)}</p>"
 
         if total_backlinks > 10:
-            pbn_list_html += f"<p>... 외 {total_backlinks - 10}개 더</p>"
+            pbn_list_html += f"<p>... ??{total_backlinks - 10}�???/p>"
 
-        # HTML 콘텐츠
+        # HTML 콘텐�?
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #059669;">🎉 백링크 구축이 완료되었습니다!</h2>
+            <h2 style="color: #059669;">?�� 백링??구축???�료?�었?�니??</h2>
             
             <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #1e40af; margin-top: 0;">주문 정보</h3>
+                <h3 style="color: #1e40af; margin-top: 0;">주문 ?�보</h3>
                 <p><strong>주문 번호:</strong> {order_id}</p>
-                <p><strong>대상 URL:</strong> {target_url}</p>
-                <p><strong>키워드:</strong> {keyword}</p>
-                <p><strong>완료 일시:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p><strong>?�??URL:</strong> {target_url}</p>
+                <p><strong>?�워??</strong> {keyword}</p>
+                <p><strong>?�료 ?�시:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             </div>
             
             <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <h3 style="color: #059669; margin-top: 0;">구축 결과</h3>
-                <p><strong>총 백링크 수:</strong> {total_backlinks}개</p>
+                <p><strong>�?백링????</strong> {total_backlinks}�?/p>
                 <div style="margin-top: 15px;">
-                    <h4 style="color: #374151; margin-bottom: 10px;">구축된 PBN 사이트:</h4>
+                    <h4 style="color: #374151; margin-bottom: 10px;">구축??PBN ?�이??</h4>
                     {pbn_list_html}
                 </div>
             </div>
             
             <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #92400e; margin-top: 0;">📈 SEO 효과 안내</h3>
-                <p>• 백링크 효과는 보통 2-4주 후부터 나타납니다</p>
-                <p>• 지속적인 SEO 최적화를 권장합니다</p>
-                <p>• 추가 백링크가 필요하시면 언제든 연락주세요</p>
+                <h3 style="color: #92400e; margin-top: 0;">?�� SEO ?�과 ?�내</h3>
+                <p>??백링???�과??보통 2-4�??��????��??�니??/p>
+                <p>??지?�적??SEO 최적?��? 권장?�니??/p>
+                <p>??추�? 백링?��? ?�요?�시�??�제???�락주세??/p>
             </div>
             
             <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-                감사합니다!<br>
-                FollowSales 팀
+                감사?�니??<br>
+                BacklinkVending ?�
             </p>
         </div>
         """
 
-        # 이메일 발송
+        # ?�메??발송
         result = email_service.send_email(
             to_email=user_email,
-            subject=f"[FollowSales] 백링크 구축이 완료되었습니다! - {order_id}",
+            subject=f"[BacklinkVending] 백링??구축???�료?�었?�니?? - {order_id}",
             html_content=html_content,
         )
 
-        # Supabase REST API로 이메일 로그 저장
+        # Supabase REST API�??�메??로그 ?�??
         create_email_log_via_api(
             email_type="backlink_completion",
             recipient_email=user_email,
-            subject=f"[FollowSales] 백링크 구축이 완료되었습니다! - {order_id}",
+            subject=f"[BacklinkVending] 백링??구축???�료?�었?�니?? - {order_id}",
             message_id=result.get("message_id"),
             order_id=order_id,
             template_type="pbn_completion",
@@ -313,11 +313,11 @@ def send_admin_failure_alert(
     order_id: str, error_details: dict, admin_email: str = "vnfm0580@gmail.com"
 ):
     """
-    관리자 실패 알림 이메일 발송 (5.4 기능)
+    관리자 ?�패 ?�림 ?�메??발송 (5.4 기능)
     Args:
         order_id: 주문 ID
-        error_details: 에러 상세 정보
-        admin_email: 관리자 이메일 주소
+        error_details: ?�러 ?�세 ?�보
+        admin_email: 관리자 ?�메??주소
     """
     try:
         email_service = EmailService()
@@ -327,47 +327,47 @@ def send_admin_failure_alert(
         target_url = safe_str(error_details.get("target_url", ""))
         keyword = safe_str(error_details.get("keyword", ""))
 
-        # HTML 콘텐츠
+        # HTML 콘텐�?
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #dc2626;">🚨 백링크 구축 실패 알림</h2>
+            <h2 style="color: #dc2626;">?�� 백링??구축 ?�패 ?�림</h2>
             
             <div style="background-color: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
-                <h3 style="color: #991b1b; margin-top: 0;">실패 정보</h3>
+                <h3 style="color: #991b1b; margin-top: 0;">?�패 ?�보</h3>
                 <p><strong>주문 번호:</strong> {order_id}</p>
-                <p><strong>에러 타입:</strong> {error_type}</p>
-                <p><strong>에러 메시지:</strong> {error_message}</p>
-                <p><strong>대상 URL:</strong> {target_url}</p>
-                <p><strong>키워드:</strong> {keyword}</p>
-                <p><strong>발생 시간:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p><strong>?�러 ?�??</strong> {error_type}</p>
+                <p><strong>?�러 메시지:</strong> {error_message}</p>
+                <p><strong>?�??URL:</strong> {target_url}</p>
+                <p><strong>?�워??</strong> {keyword}</p>
+                <p><strong>발생 ?�간:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             </div>
             
             <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #92400e; margin-top: 0;">🔧 권장 조치사항</h3>
-                <p>• 에러 로그를 확인하여 원인을 파악하세요</p>
-                <p>• 필요시 수동으로 백링크를 구축하세요</p>
-                <p>• 고객에게 상황을 안내하세요</p>
+                <h3 style="color: #92400e; margin-top: 0;">?�� 권장 조치?�항</h3>
+                <p>???�러 로그�??�인?�여 ?�인???�악?�세??/p>
+                <p>???�요???�동?�로 백링?��? 구축?�세??/p>
+                <p>??고객?�게 ?�황???�내?�세??/p>
             </div>
             
             <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-                시스템 자동 알림<br>
-                FollowSales 관리시스템
+                ?�스???�동 ?�림<br>
+                BacklinkVending 관리시?�템
             </p>
         </div>
         """
 
-        # 이메일 발송
+        # ?�메??발송
         result = email_service.send_email(
             to_email=admin_email,
-            subject=f"[FollowSales 관리자] 백링크 구축 실패 - {order_id}",
+            subject=f"[BacklinkVending 관리자] 백링??구축 ?�패 - {order_id}",
             html_content=html_content,
         )
 
-        # Supabase REST API로 이메일 로그 저장
+        # Supabase REST API�??�메??로그 ?�??
         create_email_log_via_api(
             email_type="admin_alert",
             recipient_email=admin_email,
-            subject=f"[FollowSales 관리자] 백링크 구축 실패 - {order_id}",
+            subject=f"[BacklinkVending 관리자] 백링??구축 ?�패 - {order_id}",
             message_id=result.get("message_id"),
             order_id=order_id,
             template_type="admin_failure",
@@ -395,17 +395,17 @@ def send_admin_failure_alert(
 @app.task
 def send_backlink_report_email(user_email: str, backlinks: List[Dict[str, Any]]):
     """
-    백링크 보고서 이메일 발송 (5.4 기능)
+    백링??보고???�메??발송 (5.4 기능)
     Args:
-        user_email: 사용자 이메일 주소
-        backlinks: 백링크 목록
+        user_email: ?�용???�메??주소
+        backlinks: 백링??목록
     """
     try:
         email_service = EmailService()
 
         total_backlinks = len(backlinks)
 
-        # 백링크 리스트 HTML 생성 (최대 20개까지만 표시)
+        # 백링??리스??HTML ?�성 (최�? 20개까지�??�시)
         backlink_list_html = ""
         for i, backlink in enumerate(backlinks[:20], 1):
             source_url = safe_str(backlink.get("source_url", ""))
@@ -416,57 +416,57 @@ def send_backlink_report_email(user_email: str, backlinks: List[Dict[str, Any]])
             <div style="border-bottom: 1px solid #e5e7eb; padding: 10px 0;">
                 <p><strong>{i}. {keyword}</strong></p>
                 <p style="margin: 5px 0; font-size: 14px; color: #6b7280;">
-                    📍 출처: {source_url}<br>
-                    🎯 대상: {target_url}
+                    ?�� 출처: {source_url}<br>
+                    ?�� ?�?? {target_url}
                 </p>
             </div>
             """
 
         if total_backlinks > 20:
-            backlink_list_html += f"<p style='text-align: center; color: #6b7280; margin-top: 15px;'>... 외 {total_backlinks - 20}개 더</p>"
+            backlink_list_html += f"<p style='text-align: center; color: #6b7280; margin-top: 15px;'>... ??{total_backlinks - 20}�???/p>"
 
-        # HTML 콘텐츠
+        # HTML 콘텐�?
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2563eb;">📊 백링크 보고서</h2>
+            <h2 style="color: #2563eb;">?�� 백링??보고??/h2>
             
             <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #1e40af; margin-top: 0;">📈 요약</h3>
-                <p><strong>총 백링크 수:</strong> {total_backlinks}개</p>
-                <p><strong>보고서 생성일:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <h3 style="color: #1e40af; margin-top: 0;">?�� ?�약</h3>
+                <p><strong>�?백링????</strong> {total_backlinks}�?/p>
+                <p><strong>보고???�성??</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
             </div>
             
             <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #374151; margin-top: 0;">🔗 백링크 목록</h3>
+                <h3 style="color: #374151; margin-top: 0;">?�� 백링??목록</h3>
                 {backlink_list_html}
             </div>
             
             <div style="background-color: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #059669; margin-top: 0;">💡 SEO 팁</h3>
-                <p>• 백링크 품질이 양보다 중요합니다</p>
-                <p>• 다양한 도메인에서의 백링크가 효과적입니다</p>
-                <p>• 정기적인 백링크 모니터링을 권장합니다</p>
+                <h3 style="color: #059669; margin-top: 0;">?�� SEO ??/h3>
+                <p>??백링???�질???�보??중요?�니??/p>
+                <p>???�양???�메?�에?�의 백링?��? ?�과?�입?�다</p>
+                <p>???�기?�인 백링??모니?�링??권장?�니??/p>
             </div>
             
             <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-                감사합니다!<br>
-                FollowSales 팀
+                감사?�니??<br>
+                BacklinkVending ?�
             </p>
         </div>
         """
 
-        # 이메일 발송
+        # ?�메??발송
         result = email_service.send_email(
             to_email=user_email,
-            subject=f"[FollowSales] 백링크 보고서 ({total_backlinks}개)",
+            subject=f"[BacklinkVending] 백링??보고??({total_backlinks}�?",
             html_content=html_content,
         )
 
-        # Supabase REST API로 이메일 로그 저장
+        # Supabase REST API�??�메??로그 ?�??
         create_email_log_via_api(
             email_type="backlink_report",
             recipient_email=user_email,
-            subject=f"[FollowSales] 백링크 보고서 ({total_backlinks}개)",
+            subject=f"[BacklinkVending] 백링??보고??({total_backlinks}�?",
             message_id=result.get("message_id"),
             template_type="report",
             extra_data={
@@ -492,50 +492,50 @@ def send_backlink_report_email(user_email: str, backlinks: List[Dict[str, Any]])
 @app.task
 def send_event_notification_email(user_email: str, event_type: str, event_data: dict):
     """
-    이벤트 알림 이메일 발송 (5.4 기능)
+    ?�벤???�림 ?�메??발송 (5.4 기능)
     Args:
-        user_email: 사용자 이메일 주소
-        event_type: 이벤트 타입
-        event_data: 이벤트 데이터
+        user_email: ?�용???�메??주소
+        event_type: ?�벤???�??
+        event_data: ?�벤???�이??
     """
     try:
         email_service = EmailService()
 
-        # 이벤트 타입별 제목과 내용 설정
+        # ?�벤???�?�별 ?�목�??�용 ?�정
         if event_type == "promotion":
-            subject = "[FollowSales] 🎁 특별 프로모션 안내"
-            content = "새로운 프로모션이 시작되었습니다!"
+            subject = "[BacklinkVending] ?�� ?�별 ?�로모션 ?�내"
+            content = "?�로???�로모션???�작?�었?�니??"
         elif event_type == "system_update":
-            subject = "[FollowSales] 🔧 시스템 업데이트 안내"
-            content = "시스템이 업데이트되었습니다."
+            subject = "[BacklinkVending] ?�� ?�스???�데?�트 ?�내"
+            content = "?�스?�이 ?�데?�트?�었?�니??"
         else:
-            subject = f"[FollowSales] {event_type} 알림"
-            content = "새로운 알림이 있습니다."
+            subject = f"[BacklinkVending] {event_type} ?�림"
+            content = "?�로???�림???�습?�다."
 
-        # HTML 콘텐츠
+        # HTML 콘텐�?
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #2563eb;">{content}</h2>
             
             <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #1e40af; margin-top: 0;">알림 내용</h3>
+                <h3 style="color: #1e40af; margin-top: 0;">?�림 ?�용</h3>
                 <p>{safe_str(event_data.get('message', ''))}</p>
             </div>
             
             <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
-                FollowSales 팀
+                BacklinkVending ?�
             </p>
         </div>
         """
 
-        # 이메일 발송
+        # ?�메??발송
         result = email_service.send_email(
             to_email=user_email,
             subject=subject,
             html_content=html_content,
         )
 
-        # Supabase REST API로 이메일 로그 저장
+        # Supabase REST API�??�메??로그 ?�??
         create_email_log_via_api(
             email_type="event_notification",
             recipient_email=user_email,
@@ -561,11 +561,11 @@ def send_event_notification_email(user_email: str, event_type: str, event_data: 
 @app.task(queue="email")
 def send_email_task(to_email: str, subject: str, html_content: str):
     """
-    범용 이메일 발송 태스크 (5.4 기능)
+    범용 ?�메??발송 ?�스??(5.4 기능)
     Args:
-        to_email: 수신자 이메일
-        subject: 이메일 제목
-        html_content: HTML 내용
+        to_email: ?�신???�메??
+        subject: ?�메???�목
+        html_content: HTML ?�용
     """
     try:
         email_service = EmailService()
@@ -589,24 +589,24 @@ def create_email_log_via_api(
     status: str = "sent",
 ):
     """
-    Supabase REST API를 통한 이메일 로그 저장
+    Supabase REST API�??�한 ?�메??로그 ?�??
     Args:
-        email_type: 이메일 타입
-        recipient_email: 수신자 이메일
-        subject: 이메일 제목 (최대 200자)
+        email_type: ?�메???�??
+        recipient_email: ?�신???�메??
+        subject: ?�메???�목 (최�? 200??
         message_id: 메시지 ID
         order_id: 주문 ID
-        template_type: 템플릿 타입
-        extra_data: 추가 데이터 (JSONB)
-        status: 상태
+        template_type: ?�플�??�??
+        extra_data: 추�? ?�이??(JSONB)
+        status: ?�태
     """
     try:
         debug_print(
-            f"이메일 로그 저장 시작: {email_type} -> {recipient_email}",
+            f"?�메??로그 ?�???�작: {email_type} -> {recipient_email}",
             "create_email_log_via_api",
         )
 
-        # 제목 길이 제한 (200자)
+        # ?�목 길이 ?�한 (200??
         subject_limited = subject[:200] if subject else ""
 
         log_data = {
@@ -617,7 +617,7 @@ def create_email_log_via_api(
             "sent_at": datetime.now().isoformat(),
         }
 
-        # 선택적 필드들
+        # ?�택???�드??
         if message_id:
             log_data["message_id"] = message_id
         if order_id:
@@ -627,17 +627,17 @@ def create_email_log_via_api(
         if extra_data:
             log_data["extra_data"] = extra_data
 
-        debug_print(f"Supabase에 삽입할 데이터: {log_data}", "create_email_log_via_api")
+        debug_print(f"Supabase???�입???�이?? {log_data}", "create_email_log_via_api")
 
-        # Supabase에 삽입
+        # Supabase???�입
         result = supabase.table("email_logs").insert(log_data).execute()
 
-        debug_print(f"이메일 로그 저장 완료: {result.data}", "create_email_log_via_api")
+        debug_print(f"?�메??로그 ?�???�료: {result.data}", "create_email_log_via_api")
         logger.info(f"Email log saved via API: {email_type} to {recipient_email}")
         return result.data
 
     except Exception as e:
-        debug_print(f"이메일 로그 저장 실패: {e}", "create_email_log_via_api")
+        debug_print(f"?�메??로그 ?�???�패: {e}", "create_email_log_via_api")
         logger.error(f"Failed to save email log via API: {e}")
-        # 이메일 로그 저장 실패해도 이메일 발송은 성공으로 처리
+        # ?�메??로그 ?�???�패?�도 ?�메??발송?� ?�공?�로 처리
         return None

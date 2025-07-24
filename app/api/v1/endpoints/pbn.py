@@ -124,7 +124,7 @@ async def test_request(
         if not user:
             # 테스트용 사용자 생성
             test_user = User(
-                email="test@followsales.com", clerk_id="test_clerk_123", role="user"
+                email="test@backlinkvending.com", clerk_id="test_clerk_123", role="user"
             )
             db.add(test_user)
             db.commit()

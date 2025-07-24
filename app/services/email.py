@@ -61,11 +61,11 @@ class EmailService:
             if not resend.api_key:
                 raise ValueError("RESEND_API_KEY가 설정되지 않았습니다.")
 
-            subject = "FollowSales에 오신 것을 환영합니다! 🎉"
+            subject = "BacklinkVending에 오신 것을 환영합니다! 🎉"
             html_content = f"""
             <html>
             <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h1 style="color: #007bff;">FollowSales에 오신 것을 환영합니다! 🎉</h1>
+                <h1 style="color: #007bff;">BacklinkVending에 오신 것을 환영합니다! 🎉</h1>
                 <p>안녕하세요, {user_name or user_email}님!</p>
                 
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
@@ -91,7 +91,7 @@ class EmailService:
                 
                 <hr style="margin: 30px 0;">
                 <p style="color: #666; font-size: 12px;">
-                    FollowSales 팀<br>
+                    BacklinkVending 팀<br>
                     이 이메일은 자동으로 발송된 메시지입니다.
                 </p>
             </body>
@@ -170,7 +170,7 @@ class EmailService:
                 
                 <hr style="margin: 30px 0;">
                 <p style="color: #666; font-size: 12px;">
-                    FollowSales 팀<br>
+                    BacklinkVending 팀<br>
                     이 이메일은 자동으로 발송된 메시지입니다.
                 </p>
             </body>
