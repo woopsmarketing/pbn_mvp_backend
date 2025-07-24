@@ -151,18 +151,58 @@ def create_pbn_backlink_rest(
                 # 🎯 핵심 단계 1: LangChain 콘텐츠 생성
                 print(f"📝 [PBN] 콘텐츠 생성 중... (키워드: {keyword})")
 
-                # 실제 AI 콘텐츠 생성 호출
-                content_result = langchain_content_generator.generate_blog_content(
-                    target_url, keyword, pbn_site_domain or clean_domain
-                )
+                try:
+                    # PBN 콘텐츠 서비스 가져오기
+                    content_service = get_pbn_content_service()
 
-                if not content_result.get("success"):
-                    logger.error(f"LangChain 콘텐츠 생성 실패: {content_result}")
+                    # LangChain을 통한 완전한 콘텐츠 생성
+                    logger.info("LangChain 콘텐츠 생성 서비스 시작...")
+                    content_result = content_service.generate_complete_content(
+                        keyword=keyword, target_url=target_url
+                    )
+
+                    if content_result["success"]:
+                        logger.info(f"LangChain 콘텐츠 생성 성공")
+                        title = content_result["title"]
+                        html_content = content_result["html_content"]
+                        featured_image_path = content_result.get("featured_image_path")
+                        logger.info(f"HTML 콘텐츠 길이: {len(html_content)} 문자")
+
+                        # 추가 HTML 정리 (워드프레스 호환성)
+                        import re
+
+                        # 불필요한 마크다운 기호 제거
+                        html_content = re.sub(r"#{1,6}\s*", "", html_content)
+                        html_content = re.sub(r"—+", "", html_content)
+                        html_content = re.sub(
+                            r"\n{3,}", "\n\n", html_content
+                        )  # 과도한 줄바꿈 정리
+                        logger.info(f"HTML 콘텐츠 정리 완료")
+
+                    else:
+                        logger.warning(
+                            f"LangChain 콘텐츠 생성 실패, 폴백 방식 사용: {content_result.get('error', '알 수 없는 오류')}"
+                        )
+                        # 폴백: 기존 방식으로 글 작성
+                        title = (
+                            f"Test BackLink for SEO 백링크 {random.randint(1, 1000)}"
+                        )
+                        logger.info(f"폴백 글 제목: {title}")
+
+                        content = f"""
+<h2>{keyword}에 대한 유용한 정보</h2>
+<p>이 글에서는 <a href="{target_url}">{keyword}</a>에 대해 자세히 알아보겠습니다.</p>
+<p>{keyword}는 많은 사람들이 관심을 가지는 주제입니다.</p>
+<p>더 자세한 정보는 링크를 참고해 주세요.</p>
+"""
+                        html_content = build_html_content(
+                            title, content, target_url, keyword
+                        )
+                        featured_image_path = None
+
+                except Exception as e:
+                    logger.error(f"LangChain 콘텐츠 생성 실패: {e}")
                     continue
-
-                title = content_result.get("title", f"{keyword} 관련 정보")
-                html_content = content_result.get("html_content", "")
-                featured_image_path = content_result.get("featured_image_path")
 
                 if not html_content:
                     logger.warning(f"콘텐츠가 생성되지 않아 다음 사이트로 시도합니다")
