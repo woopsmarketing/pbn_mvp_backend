@@ -58,6 +58,77 @@ def create_pbn_backlink_rest(
         used_sites = []
         server_error_codes = [503, 504, 508, 502, 500]  # 서버 오류 코드들
 
+        # 🎯 핵심 단계 1: LangChain 콘텐츠 생성 (한 번만 실행)
+        print(f"📝 [PBN] 콘텐츠 생성 중... (키워드: {keyword})")
+
+        # 콘텐츠 생성 변수 초기화
+        title = None
+        html_content = None
+        featured_image_path = None
+
+        try:
+            # PBN 콘텐츠 서비스 가져오기
+            content_service = get_pbn_content_service()
+
+            # LangChain을 통한 완전한 콘텐츠 생성 (모든 PBN 사이트에서 재사용)
+            logger.info("LangChain 콘텐츠 생성 서비스 시작...")
+            content_result = content_service.generate_complete_content(
+                keyword=keyword, target_url=target_url
+            )
+
+            if content_result["success"]:
+                logger.info(f"LangChain 콘텐츠 생성 성공")
+                title = content_result["title"]
+                html_content = content_result["html_content"]
+                featured_image_path = content_result.get("featured_image_path")
+                logger.info(f"HTML 콘텐츠 길이: {len(html_content)} 문자")
+
+                # 추가 HTML 정리 (워드프레스 호환성)
+                import re
+
+                # 불필요한 마크다운 기호 제거
+                html_content = re.sub(r"#{1,6}\s*", "", html_content)
+                html_content = re.sub(r"—+", "", html_content)
+                html_content = re.sub(
+                    r"\n{3,}", "\n\n", html_content
+                )  # 과도한 줄바꿈 정리
+                logger.info(f"HTML 콘텐츠 정리 완료")
+                print(f"✅ [PBN] 콘텐츠 생성 완료! (재사용 가능)")
+
+            else:
+                logger.warning(
+                    f"LangChain 콘텐츠 생성 실패, 폴백 방식 사용: {content_result.get('error', '알 수 없는 오류')}"
+                )
+                # 폴백: 기존 방식으로 글 작성
+                title = f"Test BackLink for SEO 백링크 {random.randint(1, 1000)}"
+                logger.info(f"폴백 글 제목: {title}")
+
+                content = f"""
+<h2>{keyword}에 대한 유용한 정보</h2>
+<p>이 글에서는 <a href="{target_url}">{keyword}</a>에 대해 자세히 알아보겠습니다.</p>
+<p>{keyword}는 많은 사람들이 관심을 가지는 주제입니다.</p>
+<p>더 자세한 정보는 링크를 참고해 주세요.</p>
+"""
+                html_content = build_html_content(title, content, target_url, keyword)
+                featured_image_path = None
+
+        except Exception as e:
+            logger.error(f"LangChain 콘텐츠 생성 실패: {e}")
+            # 완전 실패 시에도 기본 콘텐츠 생성
+            title = f"Test BackLink for SEO 백링크 {random.randint(1, 1000)}"
+            content = f"""
+<h2>{keyword}에 대한 유용한 정보</h2>
+<p>이 글에서는 <a href="{target_url}">{keyword}</a>에 대해 자세히 알아보겠습니다.</p>
+<p>{keyword}는 많은 사람들이 관심을 가지는 주제입니다.</p>
+<p>더 자세한 정보는 링크를 참고해 주세요.</p>
+"""
+            html_content = build_html_content(title, content, target_url, keyword)
+            featured_image_path = None
+
+        if not html_content:
+            logger.error("콘텐츠 생성이 완전히 실패했습니다")
+            raise Exception("콘텐츠 생성 실패")
+
         # 성공률이 높은 사이트들 우선순위 리스트
         preferred_sites = ["realfooddiets.com"]  # 성공 이력이 있는 사이트들
 
@@ -148,68 +219,10 @@ def create_pbn_backlink_rest(
             if wp_user and wp_app_password:
                 logger.info(f"실제 워드프레스 사이트에 포스팅 시도: {site}")
 
-                # 🎯 핵심 단계 1: LangChain 콘텐츠 생성
-                print(f"📝 [PBN] 콘텐츠 생성 중... (키워드: {keyword})")
-
-                try:
-                    # PBN 콘텐츠 서비스 가져오기
-                    content_service = get_pbn_content_service()
-
-                    # LangChain을 통한 완전한 콘텐츠 생성
-                    logger.info("LangChain 콘텐츠 생성 서비스 시작...")
-                    content_result = content_service.generate_complete_content(
-                        keyword=keyword, target_url=target_url
-                    )
-
-                    if content_result["success"]:
-                        logger.info(f"LangChain 콘텐츠 생성 성공")
-                        title = content_result["title"]
-                        html_content = content_result["html_content"]
-                        featured_image_path = content_result.get("featured_image_path")
-                        logger.info(f"HTML 콘텐츠 길이: {len(html_content)} 문자")
-
-                        # 추가 HTML 정리 (워드프레스 호환성)
-                        import re
-
-                        # 불필요한 마크다운 기호 제거
-                        html_content = re.sub(r"#{1,6}\s*", "", html_content)
-                        html_content = re.sub(r"—+", "", html_content)
-                        html_content = re.sub(
-                            r"\n{3,}", "\n\n", html_content
-                        )  # 과도한 줄바꿈 정리
-                        logger.info(f"HTML 콘텐츠 정리 완료")
-
-                    else:
-                        logger.warning(
-                            f"LangChain 콘텐츠 생성 실패, 폴백 방식 사용: {content_result.get('error', '알 수 없는 오류')}"
-                        )
-                        # 폴백: 기존 방식으로 글 작성
-                        title = (
-                            f"Test BackLink for SEO 백링크 {random.randint(1, 1000)}"
-                        )
-                        logger.info(f"폴백 글 제목: {title}")
-
-                        content = f"""
-<h2>{keyword}에 대한 유용한 정보</h2>
-<p>이 글에서는 <a href="{target_url}">{keyword}</a>에 대해 자세히 알아보겠습니다.</p>
-<p>{keyword}는 많은 사람들이 관심을 가지는 주제입니다.</p>
-<p>더 자세한 정보는 링크를 참고해 주세요.</p>
-"""
-                        html_content = build_html_content(
-                            title, content, target_url, keyword
-                        )
-                        featured_image_path = None
-
-                except Exception as e:
-                    logger.error(f"LangChain 콘텐츠 생성 실패: {e}")
-                    continue
-
-                if not html_content:
-                    logger.warning(f"콘텐츠가 생성되지 않아 다음 사이트로 시도합니다")
-                    continue
-
-                # 🎯 핵심 단계 2: 워드프레스 포스팅
-                print(f"🌐 [PBN] 워드프레스 업로드 중... ({clean_domain})")
+                # �� 핵심 단계 2: 워드프레스 포스팅 (미리 생성된 콘텐츠 재사용)
+                print(
+                    f"🌐 [PBN] 워드프레스 업로드 중... ({clean_domain}) | 콘텐츠 재사용"
+                )
 
                 try:
                     logger.info(f"워드프레스 포스팅 시작: {site}")
@@ -227,15 +240,22 @@ def create_pbn_backlink_rest(
                     try:
                         import requests
 
-                        health_response = requests.get(full_site_url, timeout=10)
+                        print(f"🔍 [PBN] 사이트 헬스체크 중... (60초 대기)")
+                        health_response = requests.get(
+                            full_site_url, timeout=60
+                        )  # 60초로 증가
                         if health_response.status_code in server_error_codes:
                             logger.warning(
                                 f"사이트 헬스체크 실패: {full_site_url} - HTTP {health_response.status_code}"
                             )
                             logger.info("다음 PBN 사이트로 시도합니다...")
                             continue
+                        print(f"✅ [PBN] 헬스체크 통과: {clean_domain}")
                         logger.info(f"사이트 헬스체크 통과: {full_site_url}")
                     except Exception as e:
+                        print(
+                            f"❌ [PBN] 헬스체크 실패: {clean_domain} - {str(e)[:50]}..."
+                        )
                         logger.warning(f"사이트 헬스체크 오류: {full_site_url} - {e}")
                         logger.info("다음 PBN 사이트로 시도합니다...")
                         continue

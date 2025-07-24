@@ -146,7 +146,7 @@ class WordPressUploader:
                 f"{self.rest_api_url}/tags",
                 headers=self.rest_headers,
                 json=data,
-                timeout=30,
+                timeout=60,  # 30초에서 60초로 증가
             )
 
             if response.status_code == 201:
@@ -431,7 +431,7 @@ class WordPressUploader:
             response = requests.get(
                 f"{self.rest_api_url}/posts",
                 headers=self.rest_headers,
-                timeout=10,
+                timeout=60,  # 10초에서 60초로 증가
                 params={"per_page": 1},
             )
             if response.status_code == 200:
