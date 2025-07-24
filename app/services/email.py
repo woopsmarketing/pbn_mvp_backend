@@ -98,8 +98,13 @@ class EmailService:
             </html>
             """
 
+            # 환경별 발신자 이메일 설정
+            from_email = settings.get_email_from
+            from_name = settings.EMAIL_FROM_NAME
+            from_address = f"{from_name} <{from_email}>" if from_name else from_email
+
             params = {
-                "from": settings.EMAIL_FROM,
+                "from": from_address,
                 "to": [user_email],
                 "subject": subject,
                 "html": html_content,
@@ -172,8 +177,13 @@ class EmailService:
             </html>
             """
 
+            # 환경별 발신자 이메일 설정
+            from_email = settings.get_email_from
+            from_name = settings.EMAIL_FROM_NAME
+            from_address = f"{from_name} <{from_email}>" if from_name else from_email
+
             params = {
-                "from": settings.EMAIL_FROM,
+                "from": from_address,
                 "to": [user_email],
                 "subject": subject,
                 "html": html_content,
