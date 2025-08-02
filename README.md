@@ -141,17 +141,217 @@ pbn-backend-cloudtype/
 
 ### 프론트엔드 에러 처리 가이드
 
-#### 에러 응답 처리
+#### 팝업 메시지 처리
+
+백엔드에서 `display_type: "popup"`이 포함된 응답을 받으면 팝업으로 표시하세요:
+
 ```javascript
-// API 응답에서 무료 PBN 제한 에러 처리
-if (errorData.detail?.code === 'FREE_PBN_ALREADY_USED') {
-  // 사용자 친화적 팝업 표시
-  showWarningModal({
-    title: errorData.detail.title,
-    message: errorData.detail.message,
-    type: errorData.detail.type,
-    recommendations: errorData.detail.recommendations
-  });
+// API 응답 처리 예시
+async function handlePbnRequest(targetUrl, keyword) {
+  try {
+    const response = await fetch('/api/v1/pbn/sample-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_url: targetUrl, keyword: keyword })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      const errorDetail = data.detail;
+      
+      // 팝업 메시지 처리
+      if (errorDetail.display_type === 'popup') {
+        showPopupMessage(errorDetail);
+        return;
+      }
+      
+      // 일반 에러 처리
+      showErrorMessage(errorDetail.message);
+      return;
+    }
+    
+    // 성공 처리
+    showSuccessMessage('PBN 백링크 신청이 완료되었습니다!');
+    
+  } catch (error) {
+    console.error('PBN 요청 실패:', error);
+    showErrorMessage('요청 처리 중 오류가 발생했습니다.');
+  }
+}
+
+// 팝업 메시지 표시 함수
+function showPopupMessage(popupData) {
+  const {
+    title,
+    message,
+    type,
+    popup_config,
+    actions,
+    user_info,
+    recommendations
+  } = popupData;
+  
+  // 팝업 HTML 생성
+  const popupHtml = `
+    <div class="popup-overlay" style="
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    ">
+      <div class="popup-content" style="
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      ">
+        <div class="popup-header" style="
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        ">
+          <h3 style="margin: 0; color: #e74c3c;">${title}</h3>
+          ${popup_config.show_close_button ? 
+            '<button class="popup-close" onclick="closePopup()" style="background: none; border: none; font-size: 24px; cursor: pointer;">×</button>' 
+            : ''
+          }
+        </div>
+        
+        <div class="popup-message" style="
+          margin-bottom: 20px;
+          line-height: 1.6;
+          white-space: pre-line;
+        ">${message}</div>
+        
+        ${recommendations ? `
+          <div class="popup-recommendations" style="
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+          ">
+            <h4 style="margin: 0 0 10px 0; color: #2c3e50;">추천 서비스:</h4>
+            <ul style="margin: 0; padding-left: 20px;">
+              ${recommendations.map(rec => `<li>${rec}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+        
+        ${actions ? `
+          <div class="popup-actions" style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+          ">
+            ${actions.map(action => `
+              <button class="popup-action ${action.type}" 
+                      onclick="handlePopupAction('${action.action}', '${action.url || ''}')"
+                      style="
+                padding: 10px 20px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-weight: 500;
+                ${action.type === 'primary' ? 
+                  'background: #3498db; color: white;' : 
+                  'background: #95a5a6; color: white;'
+                }
+              ">${action.label}</button>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+  
+  // 팝업 표시
+  document.body.insertAdjacentHTML('beforeend', popupHtml);
+}
+
+// 팝업 액션 처리
+function handlePopupAction(action, url) {
+  switch(action) {
+    case 'contact_premium':
+      if (url) {
+        window.open(url, '_blank');
+      } else {
+        // 기본 문의 처리
+        alert('프리미엄 패키지 문의를 위해 관리자에게 연락해주세요.');
+      }
+      break;
+    case 'close':
+      closePopup();
+      break;
+    default:
+      closePopup();
+  }
+}
+
+// 팝업 닫기
+function closePopup() {
+  const popup = document.querySelector('.popup-overlay');
+  if (popup) {
+    popup.remove();
+  }
+}
+```
+
+#### 팝업 응답 구조
+
+```json
+{
+  "detail": {
+    "success": false,
+    "message": "⚠️ 무료 PBN 백링크 서비스 이용 제한...",
+    "title": "무료 서비스 이용 제한",
+    "type": "warning",
+    "display_type": "popup",
+    "popup_config": {
+      "show_close_button": true,
+      "show_actions": true,
+      "auto_close": false,
+      "theme": "warning",
+      "position": "center",
+      "size": "large",
+      "show_backdrop": true,
+      "backdrop_close": true
+    },
+    "actions": [
+      {
+        "label": "프리미엄 패키지 문의",
+        "type": "primary",
+        "action": "contact_premium",
+        "url": "https://tawk.to/chat/your-chat-widget-url"
+      },
+      {
+        "label": "닫기",
+        "type": "secondary",
+        "action": "close"
+      }
+    ],
+    "user_info": {
+      "email": "user@example.com",
+      "total_orders": 1,
+      "active_orders": 1
+    },
+    "recommendations": [
+      "프리미엄 PBN 백링크 패키지 이용",
+      "고품질 백링크 서비스 문의",
+      "맞춤형 SEO 상담 신청"
+    ]
+  }
 }
 ```
 

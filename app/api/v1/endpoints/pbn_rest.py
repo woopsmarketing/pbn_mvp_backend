@@ -24,6 +24,57 @@ from app.services.supabase_client import supabase_client
 
 import requests  # 임시: supabase_client를 사용하지 않는 헬퍼에서 사용
 
+
+# 팝업 메시지 헬퍼 함수 추가
+def create_popup_message(
+    title: str,
+    message: str,
+    message_type: str = "warning",
+    actions: list = None,
+    config: dict = None,
+) -> Dict[str, Any]:
+    """
+    프론트엔드에서 사용할 팝업 메시지 생성
+
+    Args:
+        title: 팝업 제목
+        message: 팝업 메시지 내용
+        message_type: 메시지 타입 (warning, error, info, success)
+        actions: 액션 버튼 목록
+        config: 팝업 설정
+
+    Returns:
+        팝업 메시지 딕셔너리
+    """
+    default_config = {
+        "show_close_button": True,
+        "show_actions": True,
+        "auto_close": False,
+        "theme": message_type,
+        "position": "center",
+        "size": "medium",
+    }
+
+    if config:
+        default_config.update(config)
+
+    default_actions = [{"label": "확인", "type": "primary", "action": "close"}]
+
+    if actions:
+        default_actions = actions
+
+    return {
+        "success": False,
+        "message": message,
+        "title": title,
+        "type": message_type,
+        "display_type": "popup",
+        "popup_config": default_config,
+        "actions": default_actions,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -530,7 +581,7 @@ async def sample_request_authenticated(
                     f"사용자 {clerk_id}({usage_check.get('user_email', '')})는 이미 무료 PBN을 사용했습니다"
                 )
 
-                # 더 친화적인 에러 메시지
+                # 팝업 친화적인 에러 메시지 생성
                 total_orders = usage_check.get("total_free_orders", 0)
                 active_orders = usage_check.get("active_orders", 0)
                 user_email = usage_check.get("user_email", "")
@@ -554,13 +605,40 @@ async def sample_request_authenticated(
 감사합니다 🙏
                 """.strip()
 
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "success": False,
-                        "message": error_message,
-                        "title": "무료 서비스 이용 제한",
-                        "type": "warning",
+                # 팝업 액션 버튼 설정
+                popup_actions = [
+                    {
+                        "label": "프리미엄 패키지 문의",
+                        "type": "primary",
+                        "action": "contact_premium",
+                        "url": "https://tawk.to/chat/your-chat-widget-url",  # 실제 채팅 위젯 URL로 변경
+                    },
+                    {"label": "닫기", "type": "secondary", "action": "close"},
+                ]
+
+                # 팝업 설정
+                popup_config = {
+                    "show_close_button": True,
+                    "show_actions": True,
+                    "auto_close": False,
+                    "theme": "warning",
+                    "position": "center",
+                    "size": "large",
+                    "show_backdrop": True,
+                    "backdrop_close": True,
+                }
+
+                popup_message = create_popup_message(
+                    title="무료 서비스 이용 제한",
+                    message=error_message,
+                    message_type="warning",
+                    actions=popup_actions,
+                    config=popup_config,
+                )
+
+                # 추가 정보 포함
+                popup_message.update(
+                    {
                         "code": "FREE_PBN_ALREADY_USED",
                         "user_info": {
                             "email": user_email,
@@ -572,8 +650,10 @@ async def sample_request_authenticated(
                             "고품질 백링크 서비스 문의",
                             "맞춤형 SEO 상담 신청",
                         ],
-                    },
+                    }
                 )
+
+                raise HTTPException(status_code=409, detail=popup_message)
 
         logger.info(
             f"무료 PBN 사용 가능 확인: 총 {usage_check.get('total_free_orders', 0)}회 사용 이력"
